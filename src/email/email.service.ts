@@ -360,7 +360,7 @@ export class EmailService {
     }
 
     // Determine thread ID by subject
-    let threadId = null;
+    let threadId: string | null = null;
     if (subject) {
       threadId = await this.findThreadBySubject(inbox.id, subject, from);
     }
