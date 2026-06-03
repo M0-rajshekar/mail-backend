@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                   String                 @id @default(uuid())
+  username             String?
+  email                String?
+  currentPlan          PaymentPlan            @default(FREE)
+  createdAt            DateTime               @default(now())
+  status               UserStatus             @default(ACTIVE)
+  updatedAt            DateTime               @updatedAt
+  walletAddress        String                 @unique
+  preferredNetwork     String?
+  lastPaymentNetwork   String?
+  accessRequestedAt    DateTime?
+  accessRequestStatus  AccessRequestStatus    @default(NOT_REQUESTED)
+  ApiKey               ApiKey?
+  Credits              Credits?
+  RefreshToken         RefreshToken?
+  Subscription         Subscription[]
+  TopUp                TopUp?
+  Transaction          Transaction[]
+  CouponRedemptions    CouponRedemption[]
+  Inboxes              Inbox[]
+  CustomDomains        CustomDomain[]
+  WebhookEndpoints     WebhookEndpoint[]
+
+  @@map("users")
+}
+
+model Inbox {
+  id              String          @id @default(cuid())
+  userId          String
+  emailAddress    String          @unique
+  displayName     String?
+  status          InboxStatus     @default(ACTIVE)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  lastActivityAt  DateTime?
+  totalEmails     Int             @default(0)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        EmailMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("inboxes")
+}
+
+model EmailMessage {
+  id              String          @id @default(cuid())
+  inboxId         String
+  threadId        String?
+  messageId       String?         @unique
+  fromAddress     String
+  fromName        String?
+  toAddresses     String[]
+  ccAddresses     String[]
+  bccAddresses    String[]
+  subject         String?
+  body            String?
+  bodyHtml        String?
+  direction       EmailDirection
+  status          EmailStatus     @default(RECEIVED)
+  createdAt       DateTime        @default(now())
+  sentAt          DateTime?
+  receivedAt      DateTime?
+  attachments     Json?           // [{filename, size, contentType, r2Key}]
+  metadata        Json?           // {headers, spamScore, etc.}
+  inbox           Inbox           @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+
+  @@index([inboxId])
+  @@index([threadId])
+  @@index([fromAddress])
+  @@index([createdAt])
+  @@index([direction])
+  @@map("email_messages")
+}
+
+model CustomDomain {
+  id              String          @id @default(cuid())
+  userId          String
+  domain          String          @unique
+  verificationTxt String
+  verified        Boolean         @default(false)
+  mxConfigured    Boolean         @default(false)
+  status          DomainStatus    @default(PENDING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("custom_domains")
+}
+
+model WebhookEndpoint {
+  id              String          @id @default(cuid())
+  userId          String
+  url             String
+  secret          String?         // for signature verification
+  events          String[]        // ["email.received", "email.sent"]
+  status          WebhookStatus   @default(ACTIVE)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  lastTriggeredAt DateTime?
+  failureCount    Int             @default(0)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("webhook_endpoints")
+}
+
+model Coupon {
+  id           String             @id @default(cuid())
+  code         String             @unique
+  creditAmount Float
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  redemptions  CouponRedemption[]
+
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id        String   @id @default(cuid())
+  userId    String
+  couponId  String
+  createdAt DateTime @default(now())
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, couponId])
+  @@index([userId])
+  @@index([couponId])
+  @@map("coupon_redemptions")
+}
+
+model Transaction {
+  id                      String            @id @default(cuid())
+  walletAddress           String
+  chainId                 String
+  chainType               ChainType
+  amount                  Float
+  creditsBilled           Float?
+  tokenAddress            String
+  status                  TransactionStatus
+  description             String?
+  invoiceId               String?
+  invoiceRefId            String?
+  payinId                 String?
+  paymentPlan             PaymentPlan
+  subscriptionDescription String?
+  tokenDecimals           Int
+  tokenSymbol             String?
+  userId                  String
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  user                    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([paymentPlan])
+  @@index([userId])
+}
+
+/// @deprecated Credits model - legacy from OnlyHers. SocialPilot uses account-based pricing via SubscriptionTier.
+model Credits {
+  id               String          @id @default(cuid())
+  /// @deprecated SocialPilot uses account limits, not credits
+  availableCredits Float           @default(150)
+  /// @deprecated SocialPilot uses account limits, not credits
+  creditUsage      Float?          @default(0)
+  status           FreePlanStatus? @default(ACTIVE)
+  userId           String          @unique
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// @deprecated TopUp model - legacy from OnlyHers. SocialPilot uses account-based pricing via SubscriptionTier.
+model TopUp {
+  id           String       @id @default(cuid())
+  userId       String       @unique
+  /// @deprecated SocialPilot uses account limits, not credits
+  totalCredits Float
+  /// @deprecated SocialPilot uses account limits, not credits
+  creditUsage  Float
+  expiryDate   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  status       TopupStatus?
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// SocialPilot Subscription - uses account-limit based pricing per tier
+model Subscription {
+  id                     String              @id @default(cuid())
+  subscriptionPlan       SubscriptionTier
+  billingPeriod          BillingPeriod?
+  subscriptionBuyDate    DateTime?
+  nextBillingDate        DateTime?
+  subscriptionCancelDate DateTime?
+  subscriptionStatus     SubscriptionStatus?
+  /// @deprecated SocialPilot uses account limits from subscriptionPlans config, not credits
+  totalCredits           Float
+  /// @deprecated SocialPilot uses account limits from subscriptionPlans config, not credits
+  creditUsage            Float
+  subscriptionRefId      String?
+  nextResetDate          DateTime?
+  userId                 String
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  paymentMethod          String?
+  paymentNetwork         String?
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([paymentMethod])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  name        String?
+  description String?
+  createdAt   DateTime  @default(now())
+  expiry      DateTime?
+  userId      String    @unique
+  User        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RefreshToken {
+  id        String   @id
+  token     String   @unique
+  expiresAt DateTime
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RateLimit {
+  id           String   @id @default(cuid())
+  userId       String
+  requestCount Int      @default(0)
+  resetDate    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  featureType  String
+
+  @@unique([userId, featureType, resetDate])
+  @@index([userId, featureType])
+  @@index([resetDate])
+  @@map("rate_limits")
+}
+
+enum UserStatus {
+  ACTIVE
+  PAUSED
+  BLOCKED
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NOT_REQUESTED
+}
+
+enum InboxStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+  DELETED
+}
+
+enum EmailDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum EmailStatus {
+  RECEIVED
+  READ
+  SENT
+  FAILED
+  DRAFT
+}
+
+enum DomainStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  ACTIVE
+}
+
+enum WebhookStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAUSED
+  DONE
+  CREATED
+}
+
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
+}
+
+enum ChainType {
+  ETHEREUM
+  SOLANA
+}
+
+enum TransactionStatus {
+  CONFIRMED
+  FAILED
+  PENDING
+}
+
+enum FreePlanStatus {
+  ACTIVE
+  PAUSED
+  DONE
+  INACTIVE
+}
+
+enum TopupStatus {
+  ACTIVE
+  PAUSED
+  DONE
+  EXPIRED
+}
+
+enum PaymentPlan {
+  FREE
+  TOP_UP
+  SUBSCRIPTION
+}
+
+enum SubscriptionTier {
+  FREE
+  STANDARD
+  TEAM
+  PRO
+  ULTIMATE
+}

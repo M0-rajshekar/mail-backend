@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.github
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+dist
+build
+coverage
+
+# Ignore log files
+*.log
+
+# Ignore test directories and files
+__tests__/
+tests/
+coverage/
+*.spec.ts
+*.test.ts
+
+# Environment files (copy selectively in Dockerfile)
+.env.local
+.env.development
+.env.test
+
+# Editor directories and files
+.idea
+.vscode
+*.swp
+*.swo
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Other
+README.md
+LICENSE
+*.md
+docs 
