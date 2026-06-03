@@ -177,12 +177,22 @@ export class EmailController {
 
   @Post('webhook/inbound')
   @ApiOperation({ summary: 'Receive inbound email (called by Cloudflare)' })
-  async handleInboundEmail(
-    @Body('emailAddress') emailAddress: string,
-    @Body('rawEmail') rawEmailBase64: string,
-  ) {
-    const rawEmail = Buffer.from(rawEmailBase64, 'base64');
-    return this.emailService.handleInboundEmail(emailAddress, rawEmail);
+  async handleInboundEmail(@Body() body: any) {
+    // Support both raw email (from Worker with raw) and parsed email (from Worker without raw)
+    if (body.rawEmail) {
+      const rawEmail = Buffer.from(body.rawEmail, 'base64');
+      return this.emailService.handleInboundEmail(body.emailAddress, rawEmail);
+    }
+    
+    // Fallback: accept parsed email data directly from Worker
+    return this.emailService.handleInboundEmailParsed({
+      emailAddress: body.emailAddress,
+      from: body.from,
+      subject: body.subject,
+      body: body.body,
+      bodyHtml: body.bodyHtml,
+      headers: body.headers,
+    });
   }
 
   // ── Webhooks ───────────────────────────────────────────────────

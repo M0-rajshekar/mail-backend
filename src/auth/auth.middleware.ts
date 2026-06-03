@@ -38,13 +38,15 @@ export class AuthMiddleware implements NestMiddleware {
             '/payments/webhook/social/confirm-payin-completed',
             '/payments/webhook/social/test',
             '/payments/webhook/mcp/confirm-payin-completed',
+            '/email/webhook/inbound',
         ];
         if (
             skipPaths.includes(req.path) ||
             req.path.startsWith('/x402/') ||
             req.path === '/x402' ||
             req.path.startsWith('/mcp/') ||     // MCP endpoints use x-api-key auth internally
-            req.path.startsWith('/connect/')    // OAuth callback — no JWT, public endpoint
+            req.path.startsWith('/connect/') ||  // OAuth callback — no JWT, public endpoint
+            req.path.startsWith('/email/webhook/')  // Email inbound webhook — called by Cloudflare, no auth
         ) {
             return next();
         }

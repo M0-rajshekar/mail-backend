@@ -336,6 +336,84 @@ export class EmailService {
     return message;
   }
 
+  // ── Inbound Email Handling (Parsed Data) ─────────────────────────
+
+  async handleInboundEmailParsed(data: {
+    emailAddress: string;
+    from: string;
+    subject: string;
+    body: string;
+    bodyHtml?: string;
+    headers?: Record<string, string>;
+  }) {
+    const { emailAddress, from, subject, body, bodyHtml, headers } = data;
+
+    // Find the inbox
+    const inbox = await this.prisma.inbox.findUnique({
+      where: { emailAddress: emailAddress.toLowerCase() },
+      include: { user: true },
+    });
+
+    if (!inbox || inbox.status !== InboxStatus.ACTIVE) {
+      this.logger.warn(`No active inbox found for ${emailAddress}`);
+      return null;
+    }
+
+    // Determine thread ID by subject
+    let threadId = null;
+    if (subject) {
+      threadId = await this.findThreadBySubject(inbox.id, subject, from);
+    }
+
+    const messageId = crypto.randomUUID();
+
+    // Store email
+    const message = await this.prisma.emailMessage.create({
+      data: {
+        inboxId: inbox.id,
+        messageId: messageId,
+        fromAddress: from.toLowerCase(),
+        fromName: null,
+        toAddresses: [emailAddress.toLowerCase()],
+        ccAddresses: [],
+        bccAddresses: [],
+        subject: subject || '',
+        body: body || '',
+        bodyHtml: bodyHtml || null,
+        direction: EmailDirection.INBOUND,
+        status: EmailStatus.RECEIVED,
+        receivedAt: new Date(),
+        threadId: threadId || messageId,
+        attachments: [],
+        metadata: {
+          headers: headers || {},
+        },
+      },
+    });
+
+    // Update inbox stats
+    await this.prisma.inbox.update({
+      where: { id: inbox.id },
+      data: {
+        totalEmails: { increment: 1 },
+        lastActivityAt: new Date(),
+      },
+    });
+
+    // Trigger webhooks
+    await this.webhookDelivery.deliverEvent(inbox.userId, 'email.received', {
+      inboxId: inbox.id,
+      messageId: message.id,
+      from: from,
+      subject: subject,
+      preview: body?.substring(0, 200) || '',
+      threadId: message.threadId,
+    });
+
+    this.logger.log(`Received parsed email for ${emailAddress} from ${from}`);
+    return message;
+  }
+
   // ── Thread Management ───────────────────────────────────────────
 
   async findThreadBySubject(
