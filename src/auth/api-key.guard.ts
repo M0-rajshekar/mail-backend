@@ -13,6 +13,11 @@ export class ApiKeyGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     
+    // Skip auth for inbound email webhook (called by Cloudflare, no auth header)
+    if (request.path === '/email/webhook/inbound') {
+      return true;
+    }
+    
     // If already authenticated via JWT, skip API key check
     if (request.user) {
       return true;
