@@ -264,15 +264,30 @@ export class EmailController {
 
             // Support both raw email (from Worker with raw) and parsed email (from Worker without raw)
             if (body.rawEmail) {
-                const rawEmail = Buffer.from(body.rawEmail, 'base64');
-                return this.emailService.handleInboundEmail(
-                    body.emailAddress,
-                    rawEmail,
-                );
+                try {
+                    const rawEmail = Buffer.from(body.rawEmail, 'base64');
+                    return await this.emailService.handleInboundEmail(
+                        body.emailAddress,
+                        rawEmail,
+                    );
+                } catch (parseError) {
+                    // Raw email failed to parse, fall back to basic parsed data if available
+                    if (body.from && body.subject) {
+                        return await this.emailService.handleInboundEmailParsed({
+                            emailAddress: body.emailAddress,
+                            from: body.from,
+                            subject: body.subject,
+                            body: body.body || '',
+                            bodyHtml: body.bodyHtml,
+                            headers: body.headers,
+                        });
+                    }
+                    throw parseError;
+                }
             }
 
             // Fallback: accept parsed email data directly from Worker
-            return this.emailService.handleInboundEmailParsed({
+            return await this.emailService.handleInboundEmailParsed({
                 emailAddress: body.emailAddress,
                 from: body.from,
                 subject: body.subject,

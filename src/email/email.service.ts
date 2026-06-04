@@ -331,8 +331,18 @@ export class EmailService {
     // ── Inbound Email Handling ─────────────────────────────────────
 
     async handleInboundEmail(emailAddress: string, rawEmail: Buffer) {
+        this.logger.log(`Processing inbound email for: ${emailAddress}, raw size: ${rawEmail.length} bytes`);
+        
         // Parse email
-        const parsed = await this.emailParser.parseEmail(rawEmail);
+        let parsed;
+        try {
+            parsed = await this.emailParser.parseEmail(rawEmail);
+            this.logger.log(`Email parsed: subject="${parsed.subject}", from=${parsed.from?.address}`);
+        } catch (parseError) {
+            this.logger.error(`Failed to parse email: ${parseError.message}`);
+            throw parseError;
+        }
+        
         const recipients = this.emailParser.extractRecipients(parsed);
 
         // Find the inbox
@@ -341,10 +351,17 @@ export class EmailService {
             include: { user: true },
         });
 
-        if (!inbox || inbox.status !== InboxStatus.ACTIVE) {
-            this.logger.warn(`No active inbox found for ${emailAddress}`);
+        if (!inbox) {
+            this.logger.warn(`Inbox not found for ${emailAddress}`);
             return null;
         }
+        
+        if (inbox.status !== InboxStatus.ACTIVE) {
+            this.logger.warn(`Inbox found but not active: ${emailAddress}, status=${inbox.status}`);
+            return null;
+        }
+        
+        this.logger.log(`Found inbox: ${inbox.id} for ${emailAddress}`);
 
         // Determine thread ID
         const references = this.emailParser.buildReferences(parsed);
@@ -487,6 +504,8 @@ export class EmailService {
         headers?: Record<string, string>;
     }) {
         const { emailAddress, from, subject, body, bodyHtml, headers } = data;
+        
+        this.logger.log(`Processing parsed inbound email for: ${emailAddress}, from: ${from}, subject: "${subject}"`);
 
         // Find the inbox
         const inbox = await this.prisma.inbox.findUnique({
@@ -494,10 +513,17 @@ export class EmailService {
             include: { user: true },
         });
 
-        if (!inbox || inbox.status !== InboxStatus.ACTIVE) {
-            this.logger.warn(`No active inbox found for ${emailAddress}`);
+        if (!inbox) {
+            this.logger.warn(`Inbox not found for ${emailAddress}`);
             return null;
         }
+        
+        if (inbox.status !== InboxStatus.ACTIVE) {
+            this.logger.warn(`Inbox found but not active: ${emailAddress}, status=${inbox.status}`);
+            return null;
+        }
+        
+        this.logger.log(`Found inbox: ${inbox.id} for ${emailAddress}`);
 
         // Determine thread ID by subject
         let threadId: string | null = null;
