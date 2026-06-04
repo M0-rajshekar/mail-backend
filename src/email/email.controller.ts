@@ -20,26 +20,74 @@ import {
     ApiBearerAuth,
     ApiOperation,
     ApiQuery,
+    ApiProperty,
+    ApiPropertyOptional,
 } from '@nestjs/swagger';
+import { IsString, IsOptional, IsArray, IsNotEmpty, ArrayMinSize } from 'class-validator';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 
 class CreateInboxDto {
+    @ApiProperty({ description: 'Email address for the inbox' })
+    @IsString()
+    @IsNotEmpty()
     emailAddress: string;
+
+    @ApiPropertyOptional({ description: 'Display name for the inbox' })
+    @IsOptional()
+    @IsString()
     displayName?: string;
 }
 
 class SendEmailDto {
+    @ApiProperty({ description: 'Recipient email addresses' })
+    @IsArray()
+    @IsString({ each: true })
+    @ArrayMinSize(1)
     to: string[];
+
+    @ApiProperty({ description: 'Email subject' })
+    @IsString()
+    @IsNotEmpty()
     subject: string;
+
+    @ApiProperty({ description: 'Email body text' })
+    @IsString()
+    @IsNotEmpty()
     body: string;
+
+    @ApiPropertyOptional({ description: 'Email body HTML' })
+    @IsOptional()
+    @IsString()
     bodyHtml?: string;
+
+    @ApiPropertyOptional({ description: 'CC recipients' })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
     cc?: string[];
+
+    @ApiPropertyOptional({ description: 'BCC recipients' })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
     bcc?: string[];
 }
 
 class RegisterWebhookDto {
+    @ApiProperty({ description: 'Webhook callback URL' })
+    @IsString()
+    @IsNotEmpty()
     url: string;
+
+    @ApiPropertyOptional({ description: 'Events to subscribe to' })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
     events?: string[];
+
+    @ApiPropertyOptional({ description: 'Webhook secret for signature verification' })
+    @IsOptional()
+    @IsString()
     secret?: string;
 }
 
