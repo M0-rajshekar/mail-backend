@@ -36,6 +36,9 @@ export class SanitizeResponseInterceptor implements NestInterceptor {
     }
 
     private sanitizeData(data: any): any {
+        if (data instanceof Date) {
+            return data;
+        }
         if (Array.isArray(data)) {
             return data.map((item) => this.sanitizeData(item));
         } else if (typeof data === 'object' && data !== null) {
