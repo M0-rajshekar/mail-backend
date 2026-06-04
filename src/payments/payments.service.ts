@@ -34,7 +34,11 @@ import {
     canConnectAccount as canConnectAccountForTier,
     getAccountLimit,
 } from './constants/subscription-plans';
-import { RATE_LIMITS, RateLimitTier, ToolName } from '../shared/types/rate-limit.types';
+import {
+    RATE_LIMITS,
+    RateLimitTier,
+    ToolName,
+} from '../shared/types/rate-limit.types';
 
 @Injectable()
 export class PaymentsService {
@@ -347,8 +351,12 @@ export class PaymentsService {
             this.logger.log(`Subscription found for user ${userId}:`);
             this.logger.log(`  - ID: ${subscription.id}`);
             this.logger.log(`  - Status: ${subscription.subscriptionStatus}`);
-            this.logger.log(`  - Next Billing Date: ${subscription.nextBillingDate}`);
-            this.logger.log(`  - Subscription Ref ID: ${subscription.subscriptionRefId}`);
+            this.logger.log(
+                `  - Next Billing Date: ${subscription.nextBillingDate}`,
+            );
+            this.logger.log(
+                `  - Subscription Ref ID: ${subscription.subscriptionRefId}`,
+            );
         } else {
             this.logger.log(`No subscription found for user ${userId}`);
         }
@@ -546,7 +554,13 @@ export class PaymentsService {
                     if (!credits) return 0;
 
                     // Check if the FREE plan status is PAUSED or DONE
-                    if ((credits.status === FreePlanStatus.PAUSED || credits.status === FreePlanStatus.DONE) && type === 'total') { return 0; }
+                    if (
+                        (credits.status === FreePlanStatus.PAUSED ||
+                            credits.status === FreePlanStatus.DONE) &&
+                        type === 'total'
+                    ) {
+                        return 0;
+                    }
 
                     return type === 'total'
                         ? credits.availableCredits - (credits.creditUsage ?? 0)
@@ -560,7 +574,13 @@ export class PaymentsService {
                     if (!topUp) return 0;
 
                     // Check if the TOP_UP plan status is PAUSED or DONE
-                    if ((topUp.status === TopupStatus.PAUSED || topUp.status === TopupStatus.DONE) && type === 'total') { return 0; }
+                    if (
+                        (topUp.status === TopupStatus.PAUSED ||
+                            topUp.status === TopupStatus.DONE) &&
+                        type === 'total'
+                    ) {
+                        return 0;
+                    }
 
                     return type === 'total'
                         ? topUp.totalCredits - topUp.creditUsage
@@ -579,10 +599,21 @@ export class PaymentsService {
                     if (!subscription[0]) return 0;
 
                     // Check if the SUBSCRIPTION plan status is PAUSED or DONE
-                    if ((subscription[0].subscriptionStatus === SubscriptionStatus.PAUSED || subscription[0].subscriptionStatus === SubscriptionStatus.DONE || subscription[0].subscriptionStatus === SubscriptionStatus.CANCELLED) && type === 'total') { return 0; }
+                    if (
+                        (subscription[0].subscriptionStatus ===
+                            SubscriptionStatus.PAUSED ||
+                            subscription[0].subscriptionStatus ===
+                                SubscriptionStatus.DONE ||
+                            subscription[0].subscriptionStatus ===
+                                SubscriptionStatus.CANCELLED) &&
+                        type === 'total'
+                    ) {
+                        return 0;
+                    }
 
                     return type === 'total'
-                        ? subscription[0].totalCredits - subscription[0].creditUsage  // Return remaining credits (total - used)
+                        ? subscription[0].totalCredits -
+                              subscription[0].creditUsage // Return remaining credits (total - used)
                         : subscription[0].creditUsage;
                 default:
                     return 0;
@@ -953,7 +984,9 @@ export class PaymentsService {
         }
     }
 
-    async fixUserCurrentPlan(userId: string): Promise<{ success: boolean; message: string }> {
+    async fixUserCurrentPlan(
+        userId: string,
+    ): Promise<{ success: boolean; message: string }> {
         // Check if user has an active subscription
         const subscription = await this.prismaService.subscription.findFirst({
             where: {
@@ -1054,8 +1087,9 @@ export class PaymentsService {
             });
 
             // Import blockchain validation
-            const { isValidBlockchainCode, getBlockchainConfig } = await import('./constants/blockchains');
-            
+            const { isValidBlockchainCode, getBlockchainConfig } =
+                await import('./constants/blockchains');
+
             // Validate blockchain code
             if (!isValidBlockchainCode(createAtlosPaymentDto.blockchainCode)) {
                 throw new BadRequestException(
@@ -1063,7 +1097,9 @@ export class PaymentsService {
                 );
             }
 
-            const blockchainConfig = getBlockchainConfig(createAtlosPaymentDto.blockchainCode);
+            const blockchainConfig = getBlockchainConfig(
+                createAtlosPaymentDto.blockchainCode,
+            );
 
             const atlasBaseUrl = 'https://api.atlos.io/gateway/rest/';
 
@@ -1188,7 +1224,7 @@ export class PaymentsService {
 
             // Determine user's rate limit tier
             let rateLimitTier: RateLimitTier = 'FREE';
-            
+
             if (user.TopUp && user.TopUp.status === 'ACTIVE') {
                 rateLimitTier = 'TOP_UP';
             } else if (user.Subscription && user.Subscription.length > 0) {
@@ -1209,7 +1245,7 @@ export class PaymentsService {
 
             // Get rate limits for the user's tier
             const tierLimits = RATE_LIMITS[rateLimitTier];
-            
+
             // OPTIMIZATION: Fetch all rate limits for this user in a single query
             const allRateLimits = await this.prismaService.rateLimit.findMany({
                 where: {
@@ -1223,13 +1259,16 @@ export class PaymentsService {
                 const key = `${rateLimit.featureType}_${rateLimit.resetDate.getTime()}`;
                 rateLimitMap.set(key, rateLimit.requestCount);
             }
-            
+
             for (const [toolName, config] of Object.entries(tierLimits)) {
                 const resetDate = this.normalizeResetDate(now, config.windowMs);
                 const key = `${toolName}_${resetDate.getTime()}`;
-                
+
                 const currentUsage = rateLimitMap.get(key) || 0;
-                const remaining = Math.max(0, config.maxRequests - currentUsage);
+                const remaining = Math.max(
+                    0,
+                    config.maxRequests - currentUsage,
+                );
 
                 limits.push({
                     toolName,
@@ -1249,7 +1288,7 @@ export class PaymentsService {
             if (error instanceof NotFoundException) {
                 throw error;
             }
-            
+
             this.logger.error('Error getting rate limits:', {
                 userId,
                 message: error.message,

@@ -32,7 +32,11 @@ async function bootstrap() {
             'x-payment-response',
         ],
         credentials: true,
-        exposedHeaders: ['Content-Type', 'Access-Control-Allow-Origin', 'x-payment-response'],
+        exposedHeaders: [
+            'Content-Type',
+            'Access-Control-Allow-Origin',
+            'x-payment-response',
+        ],
         maxAge: 86400,
         preflightContinue: false,
         optionsSuccessStatus: 204,
@@ -86,4 +90,3 @@ bootstrap().catch((error) => {
     console.error('Failed to start application:', error);
     process.exit(1);
 });
-

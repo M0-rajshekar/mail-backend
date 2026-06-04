@@ -104,7 +104,11 @@ export class ZernioService {
         return this.post('/tools/validate/post', data);
     }
 
-    async editPost(postId: string, platform: string, content: string): Promise<any> {
+    async editPost(
+        postId: string,
+        platform: string,
+        content: string,
+    ): Promise<any> {
         return this.post(`/posts/${postId}/edit`, { platform, content });
     }
 
@@ -159,7 +163,10 @@ export class ZernioService {
         return this.post('/profiles', { name, description });
     }
 
-    async updateProfile(profileId: string, data: { name?: string; description?: string; color?: string }): Promise<any> {
+    async updateProfile(
+        profileId: string,
+        data: { name?: string; description?: string; color?: string },
+    ): Promise<any> {
         return this.put(`/profiles/${profileId}`, data);
     }
 
@@ -200,7 +207,9 @@ export class ZernioService {
         if (filters?.fromDate) params.set('fromDate', filters.fromDate);
         if (filters?.toDate) params.set('toDate', filters.toDate);
         if (filters?.pageId) params.set('pageId', filters.pageId);
-        return this.get(`/analytics/facebook-page-insights?${params.toString()}`);
+        return this.get(
+            `/analytics/facebook-page-insights?${params.toString()}`,
+        );
     }
 
     // ── Queue ──────────────────────────────────────────────────────────────
@@ -223,7 +232,13 @@ export class ZernioService {
         queueId?: string;
     }): Promise<any> {
         const dayToNum: Record<string, number> = {
-            SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6,
+            SUN: 0,
+            MON: 1,
+            TUE: 2,
+            WED: 3,
+            THU: 4,
+            FRI: 5,
+            SAT: 6,
         };
         const apiSlots = data.slots.map((s) => ({
             dayOfWeek: dayToNum[s.day.toUpperCase()] ?? 0,
@@ -371,14 +386,23 @@ export class ZernioService {
 
     // ── Media ──────────────────────────────────────────────────────────────
 
-    async getUploadUrl(fileName: string, fileType: string, fileSize?: number): Promise<any> {
-        const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+    async getUploadUrl(
+        fileName: string,
+        fileType: string,
+        fileSize?: number,
+    ): Promise<any> {
+        const { S3Client, PutObjectCommand } =
+            await import('@aws-sdk/client-s3');
         const { randomUUID } = await import('crypto');
 
-        const region   = process.env.S3_REGION   || 'blr1';
-        const bucket   = process.env.S3_BUCKET   || 'onlyhurs';
-        const cdnUrl   = process.env.S3_CDN_URL  || `https://${bucket}.${region}.digitaloceanspaces.com`;
-        const endpoint = process.env.S3_ENDPOINT || `https://${region}.digitaloceanspaces.com`;
+        const region = process.env.S3_REGION || 'blr1';
+        const bucket = process.env.S3_BUCKET || 'onlyhurs';
+        const cdnUrl =
+            process.env.S3_CDN_URL ||
+            `https://${bucket}.${region}.digitaloceanspaces.com`;
+        const endpoint =
+            process.env.S3_ENDPOINT ||
+            `https://${region}.digitaloceanspaces.com`;
 
         const ext = fileType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'bin';
         const key = `media/${randomUUID()}.${ext}`;
@@ -391,7 +415,7 @@ export class ZernioService {
             endpoint,
             region,
             credentials: {
-                accessKeyId:     process.env.S3_ACCESS_KEY_ID!,
+                accessKeyId: process.env.S3_ACCESS_KEY_ID!,
                 secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
             },
             forcePathStyle: false,
@@ -407,7 +431,12 @@ export class ZernioService {
         const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
         const publicUrl = `${cdnUrl}/${key}`;
 
-        return { uploadUrl, publicUrl, key, type: fileType.startsWith('video') ? 'video' : 'image' };
+        return {
+            uploadUrl,
+            publicUrl,
+            key,
+            type: fileType.startsWith('video') ? 'video' : 'image',
+        };
     }
 
     /**
@@ -418,36 +447,43 @@ export class ZernioService {
         fileType: string,
         fileName: string,
     ): Promise<{ publicUrl: string; type: string }> {
-        const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+        const { S3Client, PutObjectCommand } =
+            await import('@aws-sdk/client-s3');
         const { randomUUID } = await import('crypto');
 
-        const region   = process.env.S3_REGION   || 'blr1';
-        const bucket   = process.env.S3_BUCKET   || 'onlyhurs';
-        const cdnUrl   = process.env.S3_CDN_URL  || `https://${bucket}.${region}.digitaloceanspaces.com`;
-        const endpoint = process.env.S3_ENDPOINT || `https://${region}.digitaloceanspaces.com`;
+        const region = process.env.S3_REGION || 'blr1';
+        const bucket = process.env.S3_BUCKET || 'onlyhurs';
+        const cdnUrl =
+            process.env.S3_CDN_URL ||
+            `https://${bucket}.${region}.digitaloceanspaces.com`;
+        const endpoint =
+            process.env.S3_ENDPOINT ||
+            `https://${region}.digitaloceanspaces.com`;
 
         const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, '');
-        const fileBuffer  = Buffer.from(cleanBase64, 'base64');
-        const ext         = fileType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'bin';
-        const key         = `media/${randomUUID()}.${ext}`;
+        const fileBuffer = Buffer.from(cleanBase64, 'base64');
+        const ext = fileType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'bin';
+        const key = `media/${randomUUID()}.${ext}`;
 
         const s3 = new S3Client({
             endpoint,
             region,
             credentials: {
-                accessKeyId:     process.env.S3_ACCESS_KEY_ID!,
+                accessKeyId: process.env.S3_ACCESS_KEY_ID!,
                 secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
             },
             forcePathStyle: false,
         });
 
-        await s3.send(new PutObjectCommand({
-            Bucket: bucket,
-            Key: key,
-            Body: fileBuffer,
-            ContentType: fileType,
-            ACL: 'public-read' as any,
-        }));
+        await s3.send(
+            new PutObjectCommand({
+                Bucket: bucket,
+                Key: key,
+                Body: fileBuffer,
+                ContentType: fileType,
+                ACL: 'public-read' as any,
+            }),
+        );
 
         return {
             publicUrl: `${cdnUrl}/${key}`,

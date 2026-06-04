@@ -12,7 +12,10 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
 import { Type } from 'class-transformer';
 import { BillingPeriod, PaymentPlan, SubscriptionTier } from 'generated/prisma';
-import { SupportedBlockchainCode, SUPPORTED_BLOCKCHAIN_CODES } from '../constants/blockchains';
+import {
+    SupportedBlockchainCode,
+    SUPPORTED_BLOCKCHAIN_CODES,
+} from '../constants/blockchains';
 
 export class CancelSubscriptionDto {
     @ApiProperty({ description: 'user ID of the user' })
@@ -203,7 +206,10 @@ export class CreateAtlosInvoiceDto {
     @IsString()
     orderId?: string;
 
-    @ApiProperty({ description: 'Order amount in orderCurrency', minimum: 0.01 })
+    @ApiProperty({
+        description: 'Order amount in orderCurrency',
+        minimum: 0.01,
+    })
     @IsNumber()
     @Type(() => Number)
     @Min(0.01, { message: 'Order amount must be at least 0.01' })
@@ -220,7 +226,10 @@ export interface AtlosInvoiceResponse {
 }
 
 export class ListAtlosAssetsDto {
-    @ApiProperty({ description: 'Order amount in orderCurrency', minimum: 0.01 })
+    @ApiProperty({
+        description: 'Order amount in orderCurrency',
+        minimum: 0.01,
+    })
     @IsNumber()
     @Type(() => Number)
     @Min(0.01, { message: 'Order amount must be at least 0.01' })

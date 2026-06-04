@@ -12,7 +12,6 @@ export class PaymentsService {
     async ingestToken(
         body: TokensDto,
     ): Promise<{ status: string; jobId: string | null }> {
-       
         const job = await this.SirenQueue.add({
             id: crypto.randomUUID(),
             userId: body.userId,

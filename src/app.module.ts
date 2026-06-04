@@ -22,6 +22,7 @@ import { HttpModule } from '@nestjs/axios';
 import { PaymentsModule } from './payments/payments.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { EmailModule } from './email/email.module';
+import { McpModule } from './mcp/mcp.module';
 
 @Module({
     imports: [
@@ -33,6 +34,7 @@ import { EmailModule } from './email/email.module';
         PaymentsModule,
         CouponsModule,
         EmailModule,
+        McpModule,
         ThrottlerModule.forRootAsync({
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => {
@@ -61,9 +63,12 @@ import { EmailModule } from './email/email.module';
                         port: configService.getOrThrow<number>('REDIS_PORT'),
                         password:
                             configService.getOrThrow<string>('REDIS_PASSWORD'),
-                        tls: isProduction || isMongoDirector ? {
-                            rejectUnauthorized: false,
-                        } : undefined,
+                        tls:
+                            isProduction || isMongoDirector
+                                ? {
+                                      rejectUnauthorized: false,
+                                  }
+                                : undefined,
                     },
                 };
             },

@@ -74,6 +74,7 @@ model EmailMessage {
   receivedAt      DateTime?
   attachments     Json?           // [{filename, size, contentType, r2Key}]
   metadata        Json?           // {headers, spamScore, etc.}
+  embedding       Unsupported("vector(384)")?  // Semantic search vector
   inbox           Inbox           @relation(fields: [inboxId], references: [id], onDelete: Cascade)
 
   @@index([inboxId])
@@ -81,6 +82,7 @@ model EmailMessage {
   @@index([fromAddress])
   @@index([createdAt])
   @@index([direction])
+  // Note: HNSW index created via raw SQL migration for pgvector performance
   @@map("email_messages")
 }
 

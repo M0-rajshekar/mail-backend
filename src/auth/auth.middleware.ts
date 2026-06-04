@@ -44,9 +44,9 @@ export class AuthMiddleware implements NestMiddleware {
             skipPaths.includes(req.path) ||
             req.path.startsWith('/x402/') ||
             req.path === '/x402' ||
-            req.path.startsWith('/mcp/') ||     // MCP endpoints use x-api-key auth internally
-            req.path.startsWith('/connect/') ||  // OAuth callback — no JWT, public endpoint
-            req.path.startsWith('/email/webhook/')  // Email inbound webhook — called by Cloudflare, no auth
+            req.path.startsWith('/mcp/') || // MCP endpoints use x-api-key auth internally
+            req.path.startsWith('/connect/') || // OAuth callback — no JWT, public endpoint
+            req.path.startsWith('/email/webhook/') // Email inbound webhook — called by Cloudflare, no auth
         ) {
             return next();
         }
@@ -69,7 +69,9 @@ export class AuthMiddleware implements NestMiddleware {
             }
 
             if (!token) {
-                this.logger.warn('Missing authorization header and no valid cookie token');
+                this.logger.warn(
+                    'Missing authorization header and no valid cookie token',
+                );
                 throw new UnauthorizedException('Missing authorization header');
             }
 
@@ -82,10 +84,14 @@ export class AuthMiddleware implements NestMiddleware {
 
             let verified: JWTVerifyResult;
             try {
-                verified = await jwtVerify(token, new TextEncoder().encode(secret), {
-                    maxTokenAge: '7d',
-                    algorithms: ['HS256'],
-                });
+                verified = await jwtVerify(
+                    token,
+                    new TextEncoder().encode(secret),
+                    {
+                        maxTokenAge: '7d',
+                        algorithms: ['HS256'],
+                    },
+                );
                 this.logger.debug('JWT successfully verified');
             } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);

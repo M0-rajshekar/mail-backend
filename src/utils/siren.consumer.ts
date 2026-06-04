@@ -24,8 +24,10 @@ export class SirenConsumer {
     @Process()
     async process(job: Job<FlexPriceInput>) {
         const { data } = job;
-        this.logger.log(`[Queue Consumer] Processing job ${job.id}: type=${data.type}, model=${data.model}, tokens=${data.tokens}`);
-        
+        this.logger.log(
+            `[Queue Consumer] Processing job ${job.id}: type=${data.type}, model=${data.model}, tokens=${data.tokens}`,
+        );
+
         try {
             await Promise.all([
                 processUserCharge({
@@ -35,15 +37,21 @@ export class SirenConsumer {
                     model: data.model,
                     type: data.type,
                     created: new Date().toISOString(),
-                    ...(data.input_tokens && { input_tokens: data.input_tokens }),
+                    ...(data.input_tokens && {
+                        input_tokens: data.input_tokens,
+                    }),
                     ...(data.output_tokens && {
                         output_tokens: data.output_tokens,
                     }),
                 }),
             ]);
-            this.logger.log(`[Queue Consumer] Successfully processed job ${job.id}`);
+            this.logger.log(
+                `[Queue Consumer] Successfully processed job ${job.id}`,
+            );
         } catch (error) {
-            this.logger.error(`[Queue Consumer] Error processing job ${job.id}: ${error.message}`);
+            this.logger.error(
+                `[Queue Consumer] Error processing job ${job.id}: ${error.message}`,
+            );
             throw error;
         }
     }

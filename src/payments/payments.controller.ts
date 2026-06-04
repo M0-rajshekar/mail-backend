@@ -403,12 +403,12 @@ export class PaymentsController {
                             currentUsage: { type: 'number' },
                             remaining: { type: 'number' },
                             resetDate: { type: 'string', format: 'date-time' },
-                            windowMs: { type: 'number' }
-                        }
-                    }
-                }
-            }
-        }
+                            windowMs: { type: 'number' },
+                        },
+                    },
+                },
+            },
+        },
     })
     @ApiResponse({ status: 404, description: 'User not found' })
     async getRateLimits(@Req() req: Request): Promise<{
@@ -503,9 +503,13 @@ export class PaymentsController {
     }
 
     @Post('fix-user-plan')
-    @ApiOperation({ summary: 'Fix user currentPlan based on active subscription' })
+    @ApiOperation({
+        summary: 'Fix user currentPlan based on active subscription',
+    })
     @ApiResponse({ status: 200, description: 'User plan fixed' })
-    async fixUserPlan(@Req() req: any): Promise<{ success: boolean; message: string }> {
+    async fixUserPlan(
+        @Req() req: any,
+    ): Promise<{ success: boolean; message: string }> {
         const userId = req.user;
         if (!userId) {
             throw new UnauthorizedException('User not authenticated');

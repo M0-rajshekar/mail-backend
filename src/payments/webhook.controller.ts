@@ -17,7 +17,7 @@ export class PaymentsWebhookController {
             success: true,
             message: 'SocialPilot webhook endpoint is accessible',
             timestamp: new Date().toISOString(),
-            endpoint: '/payments/webhook/social/test'
+            endpoint: '/payments/webhook/social/test',
         };
     }
 
@@ -25,7 +25,10 @@ export class PaymentsWebhookController {
     // @UseGuards(AtlosWebhookGuard)
     async confirmPayinCompleted(@Body() body: any, @Req() request: Request) {
         this.logger.log('=== WEBHOOK RECEIVED FROM ATLOS ===');
-        this.logger.log('Request Headers:', JSON.stringify(request.headers, null, 2));
+        this.logger.log(
+            'Request Headers:',
+            JSON.stringify(request.headers, null, 2),
+        );
         this.logger.log('Request Body:', JSON.stringify(body, null, 2));
         this.logger.log('Request IP:', request.ip);
         this.logger.log('Request URL:', request.url);

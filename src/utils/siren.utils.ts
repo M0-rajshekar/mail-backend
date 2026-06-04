@@ -1,4 +1,9 @@
-import { PrismaClient, SubscriptionStatus, UserStatus, PaymentPlan } from 'generated/prisma';
+import {
+    PrismaClient,
+    SubscriptionStatus,
+    UserStatus,
+    PaymentPlan,
+} from 'generated/prisma';
 import { FlexPriceInput } from './siren.consumer';
 import axios from 'axios';
 import * as http from 'http';
@@ -30,9 +35,7 @@ export const processUserCharge = async (input: FlexPriceInput) => {
     const prisma = new PrismaClient();
 
     if (!process.env.FLEXPRICE_BASE_URL || !process.env.FLEXPRICE_API_KEY) {
-        throw new Error(
-            'Missing required environment variables for FlexPrice',
-        );
+        throw new Error('Missing required environment variables for FlexPrice');
     }
 
     try {
@@ -66,7 +69,9 @@ export const processUserCharge = async (input: FlexPriceInput) => {
         if (type === 'mcp-ai' || type === 'edgetrue-chat') {
             // Skip if no tokens to charge (prevents Prisma increment error)
             if (balanceIncreased <= 0) {
-                console.log(`[processUserCharge] Skipping credit deduction - no tokens to charge (balanceIncreased: ${balanceIncreased})`);
+                console.log(
+                    `[processUserCharge] Skipping credit deduction - no tokens to charge (balanceIncreased: ${balanceIncreased})`,
+                );
                 // Still send FlexPrice event for tracking
                 await sendFlexPriceEvent({
                     type,
@@ -82,7 +87,7 @@ export const processUserCharge = async (input: FlexPriceInput) => {
                 });
                 return;
             }
-            
+
             // Handle credit deduction based on user's payment plan
             switch (user.currentPlan) {
                 case 'FREE': {
@@ -91,8 +96,9 @@ export const processUserCharge = async (input: FlexPriceInput) => {
                     });
 
                     if (credits) {
-                        const newCreditUsage = (credits.creditUsage || 0) + balanceIncreased;
-                        
+                        const newCreditUsage =
+                            (credits.creditUsage || 0) + balanceIncreased;
+
                         if (newCreditUsage > credits.availableCredits) {
                             // User has exceeded their free credits, pause them
                             await prisma.credits.update({
@@ -126,8 +132,9 @@ export const processUserCharge = async (input: FlexPriceInput) => {
                     });
 
                     if (topUp) {
-                        const newCreditUsage = topUp.creditUsage + balanceIncreased;
-                        
+                        const newCreditUsage =
+                            topUp.creditUsage + balanceIncreased;
+
                         if (newCreditUsage > topUp.totalCredits) {
                             // User has exceeded their top-up credits, pause them
                             await prisma.topUp.update({
@@ -164,7 +171,8 @@ export const processUserCharge = async (input: FlexPriceInput) => {
                     });
 
                     if (subscription) {
-                        const newCreditUsage = subscription.creditUsage + balanceIncreased;
+                        const newCreditUsage =
+                            subscription.creditUsage + balanceIncreased;
 
                         if (newCreditUsage > subscription.totalCredits) {
                             // User has exceeded their subscription credits, pause them
@@ -198,7 +206,7 @@ export const processUserCharge = async (input: FlexPriceInput) => {
         // Send FlexPrice event
         // Normalize 'edgetrue-chat' to 'mcp-ai' for FlexPrice categorization
         const flexPriceType = type === 'edgetrue-chat' ? 'mcp-ai' : type;
-        
+
         await sendFlexPriceEvent({
             type: flexPriceType,
             id,
@@ -320,9 +328,7 @@ export async function sendFlexPriceEvent({
     data: Record<string, any>;
 }) {
     if (!process.env.FLEXPRICE_BASE_URL || !process.env.FLEXPRICE_API_KEY) {
-        throw new Error(
-            'Missing required environment variables for FlexPrice',
-        );
+        throw new Error('Missing required environment variables for FlexPrice');
     }
     const flexPricePayload = {
         event_name: type,
@@ -332,7 +338,9 @@ export async function sendFlexPriceEvent({
         source,
         properties: data,
     };
-    console.log(`[FlexPrice] Sending event: event_name=${type} user=${subject} credits=${data?.credits} model=${data?.model}`);
+    console.log(
+        `[FlexPrice] Sending event: event_name=${type} user=${subject} credits=${data?.credits} model=${data?.model}`,
+    );
     try {
         const response = await axios.post(
             `${process.env.FLEXPRICE_BASE_URL}/events`,
@@ -353,7 +361,9 @@ export async function sendFlexPriceEvent({
                 timeout: 30000,
             },
         );
-        console.log(`[FlexPrice] Event sent successfully: status=${response.status}`);
+        console.log(
+            `[FlexPrice] Event sent successfully: status=${response.status}`,
+        );
     } catch (error: any) {
         console.error('[FlexPrice] Failed to send event:', {
             message: error?.message,

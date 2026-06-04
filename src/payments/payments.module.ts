@@ -18,8 +18,8 @@ import { SubscriptionExpiryService } from './services/subscription-expiry.servic
 @Module({
     imports: [ConfigModule, HttpModule, ScheduleModule.forRoot()],
     controllers: [
-        PaymentsController, 
-        PaymentsWebhookController, 
+        PaymentsController,
+        PaymentsWebhookController,
         X402SubscriptionController,
     ],
     providers: [
@@ -35,9 +35,9 @@ import { SubscriptionExpiryService } from './services/subscription-expiry.servic
         SubscriptionExpiryService,
     ],
     exports: [
-        PaymentsService, 
-        X402SubscriptionService, 
-        X402MiddlewareService, 
+        PaymentsService,
+        X402SubscriptionService,
+        X402MiddlewareService,
         SubscriptionPaymentService,
     ],
 })

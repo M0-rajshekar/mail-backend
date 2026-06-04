@@ -115,7 +115,6 @@ export class PaymentsWebhookService implements OnModuleInit {
     async confirmPayinCompleted(body: any): Promise<void> {
         this.logger.log('Processing payin completed event');
 
-
         // Input validation
         if (!body?.InvoiceId && !body?.invoiceId) {
             this.logger.error(
@@ -193,8 +192,8 @@ export class PaymentsWebhookService implements OnModuleInit {
                 where: {
                     OR: [
                         { walletAddress: userAddress },
-                        { walletAddress: userAddress.toLowerCase() }
-                    ]
+                        { walletAddress: userAddress.toLowerCase() },
+                    ],
                 },
                 include: {
                     TopUp: true,
@@ -669,7 +668,9 @@ export class PaymentsWebhookService implements OnModuleInit {
                 },
             });
         } catch (txErr) {
-            this.logger.error(`Failed to write transaction record for subscription activation: ${txErr}`);
+            this.logger.error(
+                `Failed to write transaction record for subscription activation: ${txErr}`,
+            );
         }
 
         this.logger.log(
@@ -736,7 +737,7 @@ export class PaymentsWebhookService implements OnModuleInit {
                 data: { status: FreePlanStatus.PAUSED },
             });
         }
-      
+
         // Handle payment based on plan type
         await this.handlePaymentByPlanType(transaction, user, body);
     }
@@ -784,8 +785,6 @@ export class PaymentsWebhookService implements OnModuleInit {
             throw new BadRequestException(`Invalid transaction amount`);
         }
 
-   
-
         const creditsPerAmount = Number(
             this.configService.get<string>('CREDITS_PER_AMOUNT_TOP_UP') ||
                 '240',
@@ -802,8 +801,6 @@ export class PaymentsWebhookService implements OnModuleInit {
         if (isNaN(creditsToAdd) || creditsToAdd <= 0) {
             throw new BadRequestException('Invalid credits calculation');
         }
-
- 
 
         const description = body.description || '';
 
@@ -915,7 +912,6 @@ export class PaymentsWebhookService implements OnModuleInit {
             await this.handleSubscriptionUpgrade(transaction, user);
             return;
         }
-     
 
         // Find existing subscription
         const latestSubscription = await this.prisma.subscription.findFirst({

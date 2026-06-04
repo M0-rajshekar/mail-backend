@@ -12,7 +12,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
             },
             // Optimize connection pool for Supabase
             // With pgbouncer, keep connection pool small
-            log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+            log:
+                process.env.NODE_ENV === 'development'
+                    ? ['error', 'warn']
+                    : ['error'],
         });
     }
 

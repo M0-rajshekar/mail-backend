@@ -1,21 +1,21 @@
 import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
+    Injectable,
+    CanActivate,
+    ExecutionContext,
+    ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/services/prisma.service';
 import { AccessRequestStatus } from 'generated/prisma';
 
 @Injectable()
 export class PaymentAccessGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+    constructor(private readonly prisma: PrismaService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    // TESTING MODE: Always allow payment access
-    return true;
+    async canActivate(context: ExecutionContext): Promise<boolean> {
+        // TESTING MODE: Always allow payment access
+        return true;
 
-    /* ORIGINAL CODE - Uncomment after testing
+        /* ORIGINAL CODE - Uncomment after testing
     const request = context.switchToHttp().getRequest();
     const userId = request.user;
 
@@ -40,5 +40,5 @@ export class PaymentAccessGuard implements CanActivate {
 
     return true;
     */
-  }
+    }
 }
