@@ -1,22 +1,23 @@
 /**
  * Cloudflare Email Service integration
- * Sends emails via Cloudflare's Email Service API
+ * Sends emails via Cloudflare's Email Service REST API
+ * https://developers.cloudflare.com/email-service/api/send-emails/rest-api/
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 
 export interface SendEmailParams {
     to: string | string[];
-    from: string | { email: string; name: string };
+    from: string | { address: string; name: string };
     subject: string;
     html?: string;
     text?: string;
     cc?: string | string[];
     bcc?: string | string[];
-    replyTo?: string | { email: string; name: string };
+    replyTo?: string | { address: string; name: string };
     attachments?: {
         content: string; // base64 encoded
         filename: string;
@@ -25,6 +26,17 @@ export interface SendEmailParams {
         contentId?: string;
     }[];
     headers?: Record<string, string>;
+}
+
+interface CloudflareSendResponse {
+    success: boolean;
+    errors: Array<{ code: number; message: string }>;
+    messages: string[];
+    result: {
+        delivered: string[];
+        permanent_bounces: string[];
+        queued: string[];
+    };
 }
 
 @Injectable()
@@ -37,23 +49,21 @@ export class CloudflareEmailService {
     ) {}
 
     /**
-     * Send email via Cloudflare Email Service
-     * In production, this uses the Workers binding.
-     * For our NestJS backend, we call Cloudflare's REST API.
+     * Send email via Cloudflare Email Service REST API.
+     * Endpoint: POST /accounts/{account_id}/email/sending/send
+     * https://developers.cloudflare.com/email-service/api/send-emails/rest-api/
      */
     async sendEmail(params: SendEmailParams): Promise<{ messageId: string }> {
         const apiToken = this.configService.get<string>('CLOUDFLARE_API_TOKEN');
-        const accountId = this.configService.get<string>(
-            'CLOUDFLARE_ACCOUNT_ID',
-        );
+        const accountId = this.configService.get<string>('CLOUDFLARE_ACCOUNT_ID');
 
         if (!apiToken || !accountId) {
-            this.logger.warn(
-                'Cloudflare credentials not configured, using mock sender',
+            throw new BadRequestException(
+                'Cloudflare credentials not configured. Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID environment variables.',
             );
-            return { messageId: `mock-${Date.now()}` };
         }
 
+        // Build the message payload per Cloudflare REST API spec
         const message: Record<string, unknown> = {
             to: params.to,
             from: params.from,
@@ -64,7 +74,18 @@ export class CloudflareEmailService {
         if (params.text) message.text = params.text;
         if (params.cc) message.cc = params.cc;
         if (params.bcc) message.bcc = params.bcc;
-        if (params.replyTo) message.replyTo = params.replyTo;
+
+        // REST API uses "reply_to" not "replyTo"
+        if (params.replyTo) {
+            if (typeof params.replyTo === 'string') {
+                message.reply_to = params.replyTo;
+            } else {
+                message.reply_to = {
+                    address: params.replyTo.address,
+                    name: params.replyTo.name,
+                };
+            }
+        }
 
         if (params.headers && Object.keys(params.headers).length > 0) {
             message.headers = params.headers;
@@ -80,12 +101,14 @@ export class CloudflareEmailService {
             }));
         }
 
-        try {
-            // Cloudflare Email Service API endpoint
-            const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/email/routing/send`;
+        // Correct endpoint per Cloudflare docs
+        const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/email/sending/send`;
 
+        this.logger.debug(`Sending email via Cloudflare: ${url}`);
+
+        try {
             const response = await firstValueFrom(
-                this.httpService.post(url, message, {
+                this.httpService.post<CloudflareSendResponse>(url, message, {
                     headers: {
                         Authorization: `Bearer ${apiToken}`,
                         'Content-Type': 'application/json',
@@ -93,28 +116,33 @@ export class CloudflareEmailService {
                 }),
             );
 
-            const result = response.data?.result;
-            return { messageId: result?.messageId || `cf-${Date.now()}` };
-        } catch (error: any) {
-            this.logger.error(
-                'Failed to send email via Cloudflare, falling back to mock sender:',
-                error.message,
-            );
-            return { messageId: `mock-${Date.now()}` };
-        }
-    }
+            const data = response.data;
 
-    /**
-     * Send email using SMTP fallback
-     */
-    async sendEmailSmtp(
-        params: SendEmailParams,
-    ): Promise<{ messageId: string }> {
-        // Fallback SMTP implementation could go here
-        // For now, just log and return mock
-        this.logger.log(
-            `SMTP fallback for email to: ${Array.isArray(params.to) ? params.to.join(', ') : params.to}`,
-        );
-        return { messageId: `smtp-${Date.now()}` };
+            if (!data.success) {
+                const errors = data.errors.map(e => `${e.code}: ${e.message}`).join('; ');
+                throw new Error(`Cloudflare Email Service error: ${errors}`);
+            }
+
+            this.logger.log(
+                `Email sent. Delivered: ${data.result.delivered.length}, Bounces: ${data.result.permanent_bounces.length}, Queued: ${data.result.queued.length}`,
+            );
+
+            // REST API does not return a messageId. Use a Cloudflare-prefixed ID for tracking.
+            return { messageId: `cf-${Date.now()}` };
+        } catch (error: any) {
+            this.logger.error('Cloudflare Email Service request failed:', error.message);
+
+            if (error.response) {
+                const status = error.response.status;
+                const cfErrors = error.response.data?.errors;
+                if (cfErrors && Array.isArray(cfErrors)) {
+                    const details = cfErrors.map((e: any) => `${e.code}: ${e.message}`).join('; ');
+                    throw new BadRequestException(`Cloudflare Email Service error (${status}): ${details}`);
+                }
+                throw new BadRequestException(`Cloudflare Email Service error (${status}): ${error.message}`);
+            }
+
+            throw new BadRequestException(`Email sending failed: ${error.message}`);
+        }
     }
 }

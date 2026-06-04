@@ -14,7 +14,10 @@ export class ApiKeyGuard implements CanActivate {
         const request = context.switchToHttp().getRequest();
 
         // Skip auth for inbound email webhook (called by Cloudflare, no auth header)
-        if (request.path === '/email/webhook/inbound') {
+        if (
+            request.path === '/email/webhook/inbound' ||
+            request.path?.startsWith('/email/webhook/')
+        ) {
             return true;
         }
 

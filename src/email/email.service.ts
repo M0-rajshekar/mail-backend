@@ -266,11 +266,12 @@ export class EmailService {
         }
 
         // Send via Cloudflare
+        this.logger.log(`Sending email from ${fromEmail} to ${dto.to.join(', ')} via Cloudflare...`);
         try {
-            await this.cloudflareEmail.sendEmail({
+            const result = await this.cloudflareEmail.sendEmail({
                 to: dto.to,
                 from: {
-                    email: fromEmail,
+                    address: fromEmail,
                     name: inbox.displayName || fromEmail,
                 },
                 subject: dto.subject,
@@ -283,6 +284,7 @@ export class EmailService {
                         ? threadingHeaders
                         : undefined,
             });
+            this.logger.log(`Email sent successfully: ${result.messageId}`);
         } catch (error: any) {
             this.logger.error(`Failed to send email: ${error.message}`);
 
@@ -426,9 +428,22 @@ export class EmailService {
                     inReplyTo,
                     references,
                 },
-                embedding: embedding ? `[${(embedding as number[]).join(',')}]` : null,
             } as any,
         });
+
+        // Set embedding via raw SQL since it's a pgvector Unsupported type
+        if (embedding) {
+            try {
+                const embeddingStr = `[${(embedding as number[]).join(',')}]`;
+                await this.prisma.$executeRawUnsafe(
+                    `UPDATE email_messages SET embedding = $1::vector WHERE id = $2`,
+                    embeddingStr,
+                    message.id,
+                );
+            } catch (err: any) {
+                this.logger.warn(`Failed to store embedding: ${err.message}`);
+            }
+        }
 
         // Update inbox stats
         await this.prisma.inbox.update({
@@ -524,9 +539,22 @@ export class EmailService {
                 metadata: {
                     headers: headers || {},
                 },
-                embedding: embedding ? `[${(embedding as number[]).join(',')}]` : null,
             } as any,
         });
+
+        // Set embedding via raw SQL since it's a pgvector Unsupported type
+        if (embedding) {
+            try {
+                const embeddingStr = `[${(embedding as number[]).join(',')}]`;
+                await this.prisma.$executeRawUnsafe(
+                    `UPDATE email_messages SET embedding = $1::vector WHERE id = $2`,
+                    embeddingStr,
+                    message.id,
+                );
+            } catch (err: any) {
+                this.logger.warn(`Failed to store embedding: ${err.message}`);
+            }
+        }
 
         // Update inbox stats
         await this.prisma.inbox.update({
@@ -643,12 +671,19 @@ export class EmailService {
             throw new NotFoundException('Inbox not found');
         }
 
-        return this.prisma.emailMessage.findMany({
-            where: { inboxId },
-            orderBy: { createdAt: 'desc' },
-            skip: offset,
-            take: limit,
-        });
+        const [emails, totalCount] = await Promise.all([
+            this.prisma.emailMessage.findMany({
+                where: { inboxId },
+                orderBy: { createdAt: 'desc' },
+                skip: offset,
+                take: limit,
+            }),
+            this.prisma.emailMessage.count({
+                where: { inboxId },
+            }),
+        ]);
+
+        return { emails, totalCount };
     }
 
     async getMessage(userId: string, messageId: string) {
@@ -978,5 +1013,19 @@ export class EmailService {
 
     async getAttachmentDownloadUrl(s3Key: string): Promise<string> {
         return this.attachmentStorage.getPresignedUrl(s3Key, 3600);
+    }
+
+    // ── Config / Diagnostics ────────────────────────────────────────
+
+    async getConfig() {
+        const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+        const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+        
+        return {
+            cloudflareConfigured: !!(apiToken && accountId),
+            accountId: accountId ? `${accountId.substring(0, 4)}...${accountId.substring(accountId.length - 4)}` : null,
+            apiTokenLength: apiToken ? apiToken.length : 0,
+            senderDomain: process.env.SENDER_DOMAIN || null,
+        };
     }
 }

@@ -11,6 +11,8 @@ import {
     Res,
     UseGuards,
     NotFoundException,
+    BadRequestException,
+    InternalServerErrorException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { EmailService } from './email.service';
@@ -255,24 +257,37 @@ export class EmailController {
     @Post('webhook/inbound')
     @ApiOperation({ summary: 'Receive inbound email (called by Cloudflare)' })
     async handleInboundEmail(@Body() body: any) {
-        // Support both raw email (from Worker with raw) and parsed email (from Worker without raw)
-        if (body.rawEmail) {
-            const rawEmail = Buffer.from(body.rawEmail, 'base64');
-            return this.emailService.handleInboundEmail(
-                body.emailAddress,
-                rawEmail,
+        try {
+            if (!body.emailAddress) {
+                throw new BadRequestException('emailAddress is required');
+            }
+
+            // Support both raw email (from Worker with raw) and parsed email (from Worker without raw)
+            if (body.rawEmail) {
+                const rawEmail = Buffer.from(body.rawEmail, 'base64');
+                return this.emailService.handleInboundEmail(
+                    body.emailAddress,
+                    rawEmail,
+                );
+            }
+
+            // Fallback: accept parsed email data directly from Worker
+            return this.emailService.handleInboundEmailParsed({
+                emailAddress: body.emailAddress,
+                from: body.from,
+                subject: body.subject,
+                body: body.body,
+                bodyHtml: body.bodyHtml,
+                headers: body.headers,
+            });
+        } catch (error: any) {
+            if (error instanceof BadRequestException || error instanceof NotFoundException) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                error.message || 'Failed to process inbound email',
             );
         }
-
-        // Fallback: accept parsed email data directly from Worker
-        return this.emailService.handleInboundEmailParsed({
-            emailAddress: body.emailAddress,
-            from: body.from,
-            subject: body.subject,
-            body: body.body,
-            bodyHtml: body.bodyHtml,
-            headers: body.headers,
-        });
     }
 
     // ── Webhooks ───────────────────────────────────────────────────
@@ -308,6 +323,14 @@ export class EmailController {
     async backfillEmbeddings(@Req() req: Request) {
         const userId = req.user as string;
         return this.emailService.backfillEmbeddings(userId);
+    }
+
+    // ── Config / Diagnostics ────────────────────────────────────────
+
+    @Get('config')
+    @ApiOperation({ summary: 'Get email service configuration status' })
+    async getConfig() {
+        return this.emailService.getConfig();
     }
 
     // ── Attachments ────────────────────────────────────────────────
