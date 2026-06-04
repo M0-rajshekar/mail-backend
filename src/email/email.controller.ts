@@ -38,6 +38,11 @@ class CreateInboxDto {
     @IsOptional()
     @IsString()
     displayName?: string;
+
+    @ApiPropertyOptional({ description: 'Custom domain ID to use (omit for default domain)' })
+    @IsOptional()
+    @IsString()
+    customDomainId?: string;
 }
 
 class SendEmailDto {

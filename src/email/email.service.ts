@@ -1,17 +1,19 @@
 import {
     BadRequestException,
+    ForbiddenException,
     Injectable,
     Logger,
     NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
-import { InboxStatus, EmailDirection, EmailStatus } from 'generated/prisma';
+import { InboxStatus, EmailDirection, EmailStatus, DomainStatus } from 'generated/prisma';
 import { CloudflareEmailService } from './cloudflare-email.service';
 import { AttachmentStorageService } from './attachment-storage.service';
 import { WebhookDeliveryService } from './webhook-delivery.service';
 import { EmailParserService } from './email-parser.service';
 import { EmbeddingService } from './embedding.service';
 import { EmailGateway } from './email.gateway';
+import { CustomDomainService } from './custom-domain.service';
 import {
     validateSender,
     generateMessageId,
@@ -35,6 +37,7 @@ import {
 export interface CreateInboxDto {
     emailAddress: string;
     displayName?: string;
+    customDomainId?: string;
 }
 
 export interface SendEmailDto {
@@ -66,18 +69,89 @@ export class EmailService {
         private readonly webhookDelivery: WebhookDeliveryService,
         private readonly emailParser: EmailParserService,
         private readonly embeddingService: EmbeddingService,
+        private readonly customDomainService: CustomDomainService,
         private readonly emailGateway?: EmailGateway,
     ) {}
 
     // ── Inbox Management ──────────────────────────────────────────
 
     async createInbox(userId: string, dto: CreateInboxDto) {
+        const normalizedEmail = dto.emailAddress.toLowerCase().trim();
+        let customDomainId: string | undefined = undefined;
+
+        // Extract domain from email
+        const emailDomain = normalizedEmail.split('@')[1];
+        if (!emailDomain) {
+            throw new BadRequestException('Invalid email address format');
+        }
+
+        // Check if this email domain belongs to someone's verified custom domain
+        const existingCustomDomain = await this.prisma.customDomain.findFirst({
+            where: {
+                domain: { equals: emailDomain, mode: 'insensitive' },
+                verified: true,
+                status: DomainStatus.ACTIVE,
+            },
+        });
+
+        if (existingCustomDomain) {
+            // Email uses a custom domain
+            if (existingCustomDomain.userId !== userId) {
+                throw new ForbiddenException(
+                    `Domain "${emailDomain}" is registered by another user. You cannot create inboxes on this domain.`
+                );
+            }
+
+            // User owns this domain - must provide the customDomainId
+            if (!dto.customDomainId) {
+                throw new BadRequestException(
+                    `Email "${normalizedEmail}" uses your custom domain "${emailDomain}". Please select this domain from the dropdown when creating the inbox.`
+                );
+            }
+
+            if (dto.customDomainId !== existingCustomDomain.id) {
+                throw new BadRequestException(
+                    `Domain ID mismatch. The email "${normalizedEmail}" belongs to domain "${existingCustomDomain.domain}".`
+                );
+            }
+
+            customDomainId = existingCustomDomain.id;
+        } else if (dto.customDomainId) {
+            // User provided a customDomainId but email doesn't match
+            const domain = await this.prisma.customDomain.findFirst({
+                where: {
+                    id: dto.customDomainId,
+                    userId,
+                    verified: true,
+                    status: DomainStatus.ACTIVE,
+                },
+            });
+
+            if (!domain) {
+                throw new BadRequestException(
+                    'Custom domain not found, not verified, or does not belong to you'
+                );
+            }
+
+            // Validate email address ends with the correct domain
+            if (emailDomain.toLowerCase() !== domain.domain.toLowerCase()) {
+                throw new BadRequestException(
+                    `Email must end with @${domain.domain} when using this custom domain`
+                );
+            }
+
+            customDomainId = domain.id;
+        }
+
+        // Check for duplicate email address (case-insensitive)
         const existing = await this.prisma.inbox.findUnique({
-            where: { emailAddress: dto.emailAddress },
+            where: { emailAddress: normalizedEmail },
         });
 
         if (existing) {
-            throw new BadRequestException('Email address already in use');
+            throw new BadRequestException(
+                `Email address "${normalizedEmail}" is already in use by another inbox`
+            );
         }
 
         // Check subscription plan limits
@@ -100,13 +174,14 @@ export class EmailService {
         const inbox = await this.prisma.inbox.create({
             data: {
                 userId,
-                emailAddress: dto.emailAddress.toLowerCase(),
-                displayName: dto.displayName || dto.emailAddress.split('@')[0],
+                customDomainId,
+                emailAddress: normalizedEmail,
+                displayName: dto.displayName || normalizedEmail.split('@')[0],
                 status: InboxStatus.ACTIVE,
             },
         });
 
-        this.logger.log(`Created inbox ${inbox.id} for user ${userId}`);
+        this.logger.log(`Created inbox ${inbox.id} for user ${userId}${customDomainId ? ' on custom domain' : ''}`);
         return inbox;
     }
 
@@ -114,6 +189,15 @@ export class EmailService {
         return this.prisma.inbox.findMany({
             where: { userId, status: { not: InboxStatus.DELETED } },
             orderBy: { createdAt: 'desc' },
+            include: {
+                customDomain: {
+                    select: {
+                        id: true,
+                        domain: true,
+                        verified: true,
+                    },
+                },
+            },
         });
     }
 
@@ -124,6 +208,13 @@ export class EmailService {
                 messages: {
                     orderBy: { createdAt: 'desc' },
                     take: 50,
+                },
+                customDomain: {
+                    select: {
+                        id: true,
+                        domain: true,
+                        verified: true,
+                    },
                 },
             },
         });
@@ -228,6 +319,16 @@ export class EmailService {
 
         // Validate sender
         const fromEmail = inbox.emailAddress;
+        
+        // Validate that FROM address is allowed (custom domain must be verified)
+        const fromValidation = await this.customDomainService.validateFromAddress(
+            userId,
+            fromEmail,
+        );
+        if (!fromValidation.valid) {
+            throw new BadRequestException(fromValidation.error);
+        }
+
         const fromDomain = fromEmail.split('@')[1];
         const { messageId, outgoingMessageId } = generateMessageId(fromDomain);
 
