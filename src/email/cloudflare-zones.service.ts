@@ -86,7 +86,55 @@ export class CloudflareZonesService {
     }
 
     /**
-     * Get Zone ID for a domain
+     * Create a new Cloudflare zone for a domain.
+     * Returns nameservers that the user must configure at their domain registrar.
+     */
+    async createZone(domain: string): Promise<{
+        zoneId: string;
+        nameservers: string[];
+        status: string;
+    } | null> {
+        try {
+            const accountId = this.configService.get<string>('CLOUDFLARE_ACCOUNT_ID');
+
+            const response = await firstValueFrom(
+                this.httpService.post<CfResponse<Zone>>(
+                    `${this.baseUrl}/zones`,
+                    {
+                        name: domain,
+                        type: 'full',
+                        account: { id: accountId },
+                    },
+                    { headers: this.getHeaders() },
+                ),
+            );
+
+            if (!response.data.success) {
+                const errors = response.data.errors
+                    .map((e) => `${e.code}: ${e.message}`)
+                    .join('; ');
+                this.logger.error(`Failed to create zone for ${domain}: ${errors}`);
+                return null;
+            }
+
+            const zone = response.data.result;
+            this.logger.log(
+                `Created zone for ${domain}: ${zone.id}, nameservers: ${zone.name_servers.join(', ')}`,
+            );
+
+            return {
+                zoneId: zone.id,
+                nameservers: zone.name_servers,
+                status: zone.status,
+            };
+        } catch (error: any) {
+            this.logger.error(`Failed to create zone for ${domain}: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Get Zone ID for a domain (existing zone)
      */
     async getZoneId(domain: string): Promise<string | null> {
         try {

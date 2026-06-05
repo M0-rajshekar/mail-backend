@@ -205,12 +205,28 @@ export class CustomDomainService {
         // Generate unique verification TXT record
         const verificationTxt = `agentmail-verify=${randomBytes(24).toString('hex')}`;
 
-        // Create domain record in transaction
+        // Step 1: Try to create Cloudflare zone and get nameservers
+        let nameservers: string[] = [];
+        let zoneId: string | undefined;
+
+        try {
+            const zoneResult = await this.cloudflareZones.createZone(normalizedDomain);
+            if (zoneResult) {
+                zoneId = zoneResult.zoneId;
+                nameservers = zoneResult.nameservers;
+                this.logger.log(`Cloudflare zone created for ${normalizedDomain}, NS: ${nameservers.join(', ')}`);
+            }
+        } catch (e: any) {
+            this.logger.warn(`Could not create Cloudflare zone for ${normalizedDomain}: ${e.message}. User must add domain to Cloudflare manually.`);
+        }
+
+        // Step 2: Create domain record in our database
         const customDomain = await this.prisma.customDomain.create({
             data: {
                 userId,
                 domain: normalizedDomain,
                 verificationTxt,
+                nameservers: nameservers,
                 status: DomainStatus.PENDING,
                 verified: false,
             },
@@ -218,14 +234,19 @@ export class CustomDomainService {
 
         this.logger.log(`Domain registered: ${normalizedDomain} for user ${userId}`);
 
+        const dnsRecords = this.generateDnsRecords(normalizedDomain, verificationTxt);
+
         return {
             id: customDomain.id,
             domain: customDomain.domain,
             status: customDomain.status,
             verified: customDomain.verified,
             verificationTxt: customDomain.verificationTxt,
-            dnsRecords: this.generateDnsRecords(normalizedDomain, verificationTxt),
-            message: 'Domain registered. Add the DNS records below to verify ownership.',
+            nameservers,
+            dnsRecords,
+            message: nameservers.length > 0
+                ? 'Domain added. Point your nameservers to the ones shown below. We will auto-configure DNS once the nameserver change propagates.'
+                : 'Domain registered. Add the zone to your Cloudflare account manually, then come back to verify.',
         };
     }
 
@@ -249,6 +270,7 @@ export class CustomDomainService {
             status: domain.status,
             verified: domain.verified,
             mxConfigured: domain.mxConfigured,
+            nameservers: domain.nameservers,
             inboxCount: domain._count.inboxes,
             createdAt: domain.createdAt,
             updatedAt: domain.updatedAt,
@@ -312,87 +334,62 @@ export class CustomDomainService {
             return { verified: true, message: 'Domain is already verified' };
         }
 
-        if (domain.status === DomainStatus.FAILED) {
-            throw new BadRequestException(
-                'Domain verification previously failed. Delete and re-register to try again.',
-            );
-        }
-
         const steps: string[] = [];
-        let allChecksPassed = true;
 
-        // Check 1: DNS TXT verification record
-        const txtVerified = await this.cloudflareZones.verifyDnsTxt(
-            domain.domain,
-            domain.verificationTxt,
-        );
+        // Check if we created a Cloudflare zone for this domain
+        const zoneId = await this.cloudflareZones.getZoneId(domain.domain);
 
-        if (txtVerified) {
-            steps.push('TXT verification record found in DNS');
-        } else {
-            steps.push(
-                'TXT record not found. Add this TXT record: ' +
-                    domain.verificationTxt,
-            );
-            allChecksPassed = false;
-        }
+        // Step 1: Auto-provision DNS if zone exists
+        if (!zoneId) {
+            // No zone found — check DNS records manually for domains added outside Cloudflare
+            const txtVerified = await this.cloudflareZones.verifyDnsTxt(domain.domain, domain.verificationTxt);
+            const mxCheck = await this.cloudflareZones.verifyMxRecords(domain.domain);
+            const spfCheck = await this.verifySpfRecord(domain.domain);
 
-        // Check 2: MX records
-        const mxCheck = await this.cloudflareZones.verifyMxRecords(domain.domain);
-        if (mxCheck.valid) {
-            steps.push(`MX records configured: ${mxCheck.records.join(', ')}`);
-        } else {
-            steps.push(
-                'MX records not found. Add MX records pointing to route1.mx.cloudflare.net, route2.mx.cloudflare.net, route3.mx.cloudflare.net',
-            );
-            allChecksPassed = false;
-        }
-
-        // Check 3: SPF record
-        const spfCheck = await this.verifySpfRecord(domain.domain);
-        if (spfCheck) {
-            steps.push('SPF record includes Cloudflare');
-        } else {
-            steps.push('SPF record missing or does not include _spf.mx.cloudflare.net');
-            allChecksPassed = false;
-        }
-
-        if (allChecksPassed) {
-            // Auto-onboard Cloudflare email routing
-            try {
-                const workerName = this.configService.get<string>('CLOUDFLARE_WORKER_NAME') || 'aged-rice-0919';
-                await this.cloudflareZones.onboardDomainForEmail(domain.domain, workerName);
-                steps.push('Cloudflare Email Routing auto-configured');
-            } catch (e: any) {
-                steps.push(
-                    `Cloudflare Email Routing setup skipped: ${e.message}. Run manually: wrangler email routing enable ${domain.domain}`,
-                );
+            if (txtVerified && mxCheck.valid && spfCheck) {
+                steps.push('All DNS records verified manually');
+            } else {
+                const missing: string[] = [];
+                if (!txtVerified) missing.push('TXT verification record');
+                if (!mxCheck.valid) missing.push('MX records (route1/2/3.mx.cloudflare.net)');
+                if (!spfCheck) missing.push('SPF record (_spf.mx.cloudflare.net)');
+                
+                return {
+                    verified: false,
+                    message: `Missing DNS records: ${missing.join(', ')}. Add them and try again.`,
+                    dnsRecords: domain.nameservers?.length > 0 ? null : this.generateDnsRecords(domain.domain, domain.verificationTxt),
+                    nameservers: domain.nameservers,
+                    steps,
+                };
             }
-
-            await this.prisma.customDomain.update({
-                where: { id: domainId },
-                data: {
-                    verified: true,
-                    mxConfigured: true,
-                    status: DomainStatus.ACTIVE,
-                },
-            });
-
-            this.logger.log(
-                `Domain verified and onboarded: ${domain.domain} for user ${userId}`,
+        } else {
+            // Zone exists — auto-provision DNS records
+            steps.push('Cloudflare zone found');
+            
+            // Auto-add all DNS records
+            await this.cloudflareZones.onboardDomainForEmail(
+                domain.domain,
+                this.configService.get('CLOUDFLARE_WORKER_NAME') || 'calm-scene-39ae',
             );
-
-            return {
-                verified: true,
-                message: 'Domain verified and email routing configured. You can now create inboxes using this domain.',
-                steps,
-            };
+            steps.push('DNS records auto-provisioned via Cloudflare API');
+            steps.push('Email Routing enabled');
         }
+
+        // Mark as verified
+        await this.prisma.customDomain.update({
+            where: { id: domainId },
+            data: {
+                verified: true,
+                mxConfigured: true,
+                status: DomainStatus.ACTIVE,
+            },
+        });
+
+        this.logger.log(`Domain verified: ${domain.domain} for user ${userId}`);
 
         return {
-            verified: false,
-            message: 'Verification incomplete. Check the DNS records below and try again.',
-            dnsRecords: this.generateDnsRecords(domain.domain, domain.verificationTxt),
+            verified: true,
+            message: 'Domain verified and email routing configured. You can now create inboxes using this domain.',
             steps,
         };
     }

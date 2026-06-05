@@ -93,6 +93,7 @@ model CustomDomain {
   userId          String
   domain          String       @unique
   verificationTxt String
+  nameservers     String[]     @default([])
   verified        Boolean      @default(false)
   mxConfigured    Boolean      @default(false)
   status          DomainStatus @default(PENDING)
