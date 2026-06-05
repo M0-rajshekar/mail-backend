@@ -205,35 +205,37 @@ export class CustomDomainService {
         // Generate unique verification TXT record
         const verificationTxt = `agentmail-verify=${randomBytes(24).toString('hex')}`;
 
-        // Step 1: Get current nameservers via DNS lookup
+        // Step 1: Create/get Cloudflare zone and get nameservers
         let nameservers: string[] = [];
+        let zoneMessage = '';
 
         try {
-            // Try Cloudflare zone API first
+            // Try to get existing zone first
             let zoneResult = await this.cloudflareZones.getZoneDetails(normalizedDomain);
+            
+            // If no zone exists, create one
             if (!zoneResult) {
+                this.logger.log(`Creating Cloudflare zone for ${normalizedDomain}`);
                 zoneResult = await this.cloudflareZones.createZone(normalizedDomain);
             }
+            
             if (zoneResult?.nameservers && zoneResult.nameservers.length > 0) {
                 nameservers = zoneResult.nameservers;
+                this.logger.log(
+                    `Cloudflare nameservers for ${normalizedDomain}: ${nameservers.join(', ')}`,
+                );
+            } else {
+                zoneMessage = 'Could not retrieve Cloudflare nameservers. Please ensure your Cloudflare API token has Zone:Edit permissions.';
             }
         } catch (e: any) {
-            this.logger.debug(`Zone API skipped: ${e.message}`);
+            this.logger.error(`Zone API failed for ${normalizedDomain}: ${e.message}`);
+            zoneMessage = 'Failed to setup Cloudflare zone. Please check your Cloudflare API token and account ID.';
         }
 
-        // Fallback: DNS NS lookup
-        if (nameservers.length === 0) {
-            try {
-                const dns = await import('dns').then((m) => m.promises);
-                const nsRecords = await dns.resolveNs(normalizedDomain);
-                nameservers = nsRecords;
-                this.logger.log(
-                    `Nameservers for ${normalizedDomain} (via DNS): ${nameservers.join(', ')}`,
-                );
-            } catch (e: any) {
-                this.logger.debug(`DNS NS lookup skipped: ${e.message}`);
-            }
-        }
+        // IMPORTANT: Do NOT fallback to DNS NS lookup
+        // DNS lookup returns CURRENT nameservers (e.g., GoDaddy, Namecheap)
+        // User needs CLOUDFLARE nameservers to change TO
+        // Returning current nameservers would confuse the user
 
         // Step 2: Create domain record in our database
         const customDomain = await this.prisma.customDomain.create({
@@ -261,7 +263,7 @@ export class CustomDomainService {
             dnsRecords,
             message: nameservers.length > 0
                 ? 'Domain added. Point your nameservers to the ones shown below. We will auto-configure DNS once the nameserver change propagates.'
-                : 'Domain registered. Add the zone to your Cloudflare account manually, then come back to verify.',
+                : zoneMessage || 'Could not retrieve Cloudflare nameservers. Please ensure your domain is added to your Cloudflare account first.',
         };
     }
 
@@ -371,8 +373,9 @@ export class CustomDomainService {
                 
                 return {
                     verified: false,
-                    message: `Missing DNS records: ${missing.join(', ')}. Add them and try again.`,
-                    dnsRecords: domain.nameservers?.length > 0 ? null : this.generateDnsRecords(domain.domain, domain.verificationTxt),
+                    message: `Missing DNS records: ${missing.join(', ')}. Add the TXT record below at your DNS provider.`,
+                    verificationTxt: domain.verificationTxt,
+                    dnsRecords: this.generateDnsRecords(domain.domain, domain.verificationTxt),
                     nameservers: domain.nameservers,
                     steps,
                 };
