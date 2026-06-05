@@ -69,12 +69,15 @@ export class CustomDomainController {
             throw new NotFoundException('User not found');
         }
 
-        const planId = user.currentPlan;
+        // Use subscription's plan tier if available, otherwise fall back to currentPlan
+        const subscriptionPlan = user.Subscription[0]?.subscriptionPlan;
+        const planId = subscriptionPlan || user.currentPlan;
         const currentDomains = user.CustomDomains.length;
 
         // Map database plan enum to config key
-        // Database: FREE, STARTER, PRO, ENTERPRISE
-        // Config:   FREE, STANDARD, TEAM, PRO, ULTIMATE
+        // Database: FREE, STARTER, PRO, ENTERPRISE (PaymentPlan)
+        // SubscriptionTier: FREE, STANDARD, TEAM, PRO, ULTIMATE
+        // Config: FREE, STANDARD, TEAM, PRO, ULTIMATE
         const planMapping: Record<string, string> = {
             'FREE': 'FREE',
             'STARTER': 'STANDARD',
@@ -85,6 +88,7 @@ export class CustomDomainController {
             'ULTIMATE': 'ULTIMATE',
             'DEVELOPER': 'STANDARD',
             'STARTUP': 'TEAM',
+            'SUBSCRIPTION': 'PRO',  // User on subscription — check actual tier from Subscription record
         };
         const mappedPlan = planMapping[planId] || planId;
         const planConfig = SUBSCRIPTION_PLANS[mappedPlan];
