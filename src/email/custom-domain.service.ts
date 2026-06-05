@@ -205,28 +205,34 @@ export class CustomDomainService {
         // Generate unique verification TXT record
         const verificationTxt = `agentmail-verify=${randomBytes(24).toString('hex')}`;
 
-        // Step 1: Get nameservers from Cloudflare
+        // Step 1: Get current nameservers via DNS lookup
         let nameservers: string[] = [];
 
         try {
-            // Check if zone already exists in Cloudflare
+            // Try Cloudflare zone API first
             let zoneResult = await this.cloudflareZones.getZoneDetails(normalizedDomain);
-            
             if (!zoneResult) {
-                // Zone doesn't exist — create it
                 zoneResult = await this.cloudflareZones.createZone(normalizedDomain);
             }
-
             if (zoneResult?.nameservers && zoneResult.nameservers.length > 0) {
                 nameservers = zoneResult.nameservers;
-                this.logger.log(
-                    `Nameservers for ${normalizedDomain}: ${nameservers.join(', ')}`,
-                );
             }
         } catch (e: any) {
-            this.logger.warn(
-                `Could not get nameservers for ${normalizedDomain}: ${e.message}`,
-            );
+            this.logger.debug(`Zone API skipped: ${e.message}`);
+        }
+
+        // Fallback: DNS NS lookup
+        if (nameservers.length === 0) {
+            try {
+                const dns = await import('dns').then((m) => m.promises);
+                const nsRecords = await dns.resolveNs(normalizedDomain);
+                nameservers = nsRecords;
+                this.logger.log(
+                    `Nameservers for ${normalizedDomain} (via DNS): ${nameservers.join(', ')}`,
+                );
+            } catch (e: any) {
+                this.logger.debug(`DNS NS lookup skipped: ${e.message}`);
+            }
         }
 
         // Step 2: Create domain record in our database
