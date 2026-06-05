@@ -113,6 +113,13 @@ export class CustomDomainService {
             throw new BadRequestException('IP addresses cannot be used as email domains');
         }
 
+        // Prevent registering system/reserved domains
+        if (this.isSystemDomain(normalizedDomain)) {
+            throw new BadRequestException(
+                `"${normalizedDomain}" is a reserved system domain and cannot be registered as a custom domain.`
+            );
+        }
+
         // Check if domain or its parent/subdomain is already registered by ANY user
         // This prevents both:
         //   1. Exact match (example.com = example.com)
@@ -645,6 +652,29 @@ export class CustomDomainService {
         const ipv4Regex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
         const ipv6Regex = /^\[?[0-9a-fA-F:]+\]?$/;
         return ipv4Regex.test(domain) || ipv6Regex.test(domain);
+    }
+
+    /**
+     * Check if domain is a system/reserved domain
+     * These domains are used internally and cannot be registered as custom domains
+     */
+    private isSystemDomain(domain: string): boolean {
+        const defaultDomain = this.configService.get<string>('DEFAULT_EMAIL_DOMAIN');
+        if (defaultDomain && domain.toLowerCase() === defaultDomain.toLowerCase()) {
+            return true;
+        }
+        
+        // Additional reserved domains
+        const reservedDomains = [
+            'agentmail.io',
+            'agentmail.com',
+            'agentmail.to',
+            'trueprop.xyz',
+        ];
+        
+        return reservedDomains.some(
+            (reserved) => domain.toLowerCase() === reserved.toLowerCase()
+        );
     }
 
     /**

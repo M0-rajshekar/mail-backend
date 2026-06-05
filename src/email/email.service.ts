@@ -85,24 +85,40 @@ export class EmailService {
             throw new BadRequestException('Invalid email address format');
         }
 
-        // Check if this email domain belongs to someone's verified custom domain
+        // Check if this is the system default domain (e.g., trueprop.xyz)
+        // System domains are NOT custom domains - they're shared infrastructure
+        const defaultDomain = process.env.DEFAULT_EMAIL_DOMAIN;
+        const isSystemDomain = defaultDomain && emailDomain.toLowerCase() === defaultDomain.toLowerCase();
+        
+        // Only enforce custom domain checks for non-system domains
+        if (!isSystemDomain) {
+            // SECURITY CHECK: Check if ANY user has registered this domain (regardless of verification status)
+            // This prevents race conditions where User B creates an inbox while User A's domain is pending
+            const registeredDomain = await this.prisma.customDomain.findFirst({
+                where: {
+                    domain: { equals: emailDomain, mode: 'insensitive' },
+                },
+            });
+
+            if (registeredDomain && registeredDomain.userId !== userId) {
+                throw new ForbiddenException(
+                    `Domain "${emailDomain}" is already registered by another user. You cannot create inboxes on this domain.`
+                );
+            }
+        }
+
+        // Check if this email domain belongs to user's verified custom domain
         const existingCustomDomain = await this.prisma.customDomain.findFirst({
             where: {
                 domain: { equals: emailDomain, mode: 'insensitive' },
+                userId,
                 verified: true,
                 status: DomainStatus.ACTIVE,
             },
         });
 
         if (existingCustomDomain) {
-            // Email uses a custom domain
-            if (existingCustomDomain.userId !== userId) {
-                throw new ForbiddenException(
-                    `Domain "${emailDomain}" is registered by another user. You cannot create inboxes on this domain.`
-                );
-            }
-
-            // User owns this domain - must provide the customDomainId
+            // User owns this verified domain - must provide the customDomainId
             if (!dto.customDomainId) {
                 throw new BadRequestException(
                     `Email "${normalizedEmail}" uses your custom domain "${emailDomain}". Please select this domain from the dropdown when creating the inbox.`
