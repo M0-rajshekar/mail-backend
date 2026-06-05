@@ -10,46 +10,46 @@ datasource db {
 }
 
 model User {
-  id                   String                 @id @default(uuid())
-  username             String?
-  email                String?
-  currentPlan          PaymentPlan            @default(FREE)
-  createdAt            DateTime               @default(now())
-  status               UserStatus             @default(ACTIVE)
-  updatedAt            DateTime               @updatedAt
-  walletAddress        String                 @unique
-  preferredNetwork     String?
-  lastPaymentNetwork   String?
-  accessRequestedAt    DateTime?
-  accessRequestStatus  AccessRequestStatus    @default(NOT_REQUESTED)
-  ApiKey               ApiKey?
-  Credits              Credits?
-  RefreshToken         RefreshToken?
-  Subscription         Subscription[]
-  TopUp                TopUp?
-  Transaction          Transaction[]
-  CouponRedemptions    CouponRedemption[]
-  Inboxes              Inbox[]
-  CustomDomains        CustomDomain[]
-  WebhookEndpoints     WebhookEndpoint[]
+  id                  String              @id @default(uuid())
+  username            String?
+  email               String?
+  currentPlan         PaymentPlan         @default(FREE)
+  createdAt           DateTime            @default(now())
+  status              UserStatus          @default(ACTIVE)
+  updatedAt           DateTime            @updatedAt
+  walletAddress       String              @unique
+  preferredNetwork    String?
+  lastPaymentNetwork  String?
+  accessRequestedAt   DateTime?
+  accessRequestStatus AccessRequestStatus @default(NOT_REQUESTED)
+  ApiKey              ApiKey?
+  Credits             Credits?
+  RefreshToken        RefreshToken?
+  Subscription        Subscription[]
+  TopUp               TopUp?
+  Transaction         Transaction[]
+  CouponRedemptions   CouponRedemption[]
+  CustomDomains       CustomDomain[]
+  Inboxes             Inbox[]
+  WebhookEndpoints    WebhookEndpoint[]
 
   @@map("users")
 }
 
 model Inbox {
-  id              String          @id @default(cuid())
-  userId          String
-  customDomainId  String?
-  emailAddress    String          @unique
-  displayName     String?
-  status          InboxStatus     @default(ACTIVE)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  lastActivityAt  DateTime?
-  totalEmails     Int             @default(0)
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customDomain    CustomDomain?   @relation(fields: [customDomainId], references: [id], onDelete: SetNull)
-  messages        EmailMessage[]
+  id             String         @id @default(cuid())
+  userId         String
+  emailAddress   String         @unique
+  displayName    String?
+  status         InboxStatus    @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  lastActivityAt DateTime?
+  totalEmails    Int            @default(0)
+  customDomainId String?
+  messages       EmailMessage[]
+  customDomain   CustomDomain?  @relation(fields: [customDomainId], references: [id])
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])
@@ -58,48 +58,47 @@ model Inbox {
 }
 
 model EmailMessage {
-  id              String          @id @default(cuid())
-  inboxId         String
-  threadId        String?
-  messageId       String?         @unique
-  fromAddress     String
-  fromName        String?
-  toAddresses     String[]
-  ccAddresses     String[]
-  bccAddresses    String[]
-  subject         String?
-  body            String?
-  bodyHtml        String?
-  direction       EmailDirection
-  status          EmailStatus     @default(RECEIVED)
-  createdAt       DateTime        @default(now())
-  sentAt          DateTime?
-  receivedAt      DateTime?
-  attachments     Json?           // [{filename, size, contentType, r2Key}]
-  metadata        Json?           // {headers, spamScore, etc.}
-  embedding       Unsupported("vector(384)")?  // Semantic search vector
-  inbox           Inbox           @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+  id           String                 @id @default(cuid())
+  inboxId      String
+  threadId     String?
+  messageId    String?                @unique
+  fromAddress  String
+  fromName     String?
+  toAddresses  String[]
+  ccAddresses  String[]
+  bccAddresses String[]
+  subject      String?
+  body         String?
+  bodyHtml     String?
+  direction    EmailDirection
+  status       EmailStatus            @default(RECEIVED)
+  createdAt    DateTime               @default(now())
+  sentAt       DateTime?
+  receivedAt   DateTime?
+  attachments  Json?
+  metadata     Json?
+  embedding    Unsupported("vector")?
+  inbox        Inbox                  @relation(fields: [inboxId], references: [id], onDelete: Cascade)
 
   @@index([inboxId])
   @@index([threadId])
   @@index([fromAddress])
   @@index([createdAt])
   @@index([direction])
-  // Note: HNSW index created via raw SQL migration for pgvector performance
   @@map("email_messages")
 }
 
 model CustomDomain {
-  id              String          @id @default(cuid())
+  id              String       @id @default(cuid())
   userId          String
-  domain          String          @unique
+  domain          String       @unique
   verificationTxt String
-  verified        Boolean         @default(false)
-  mxConfigured    Boolean         @default(false)
-  status          DomainStatus    @default(PENDING)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified        Boolean      @default(false)
+  mxConfigured    Boolean      @default(false)
+  status          DomainStatus @default(PENDING)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   inboxes         Inbox[]
 
   @@index([userId])
@@ -108,17 +107,17 @@ model CustomDomain {
 }
 
 model WebhookEndpoint {
-  id              String          @id @default(cuid())
+  id              String        @id @default(cuid())
   userId          String
   url             String
-  secret          String?         // for signature verification
-  events          String[]        // ["email.received", "email.sent"]
-  status          WebhookStatus   @default(ACTIVE)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  secret          String?
+  events          String[]
+  status          WebhookStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   lastTriggeredAt DateTime?
-  failureCount    Int             @default(0)
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  failureCount    Int           @default(0)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])

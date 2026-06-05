@@ -22,7 +22,8 @@ import {
 import { PrismaService } from '../services/prisma.service';
 import { DomainStatus, InboxStatus } from 'generated/prisma';
 import { ConfigService } from '@nestjs/config';
-import { EMAIL_PLANS, isUnlimited } from './constants/email-plans';
+import { SUBSCRIPTION_PLANS } from '../payments/constants/subscription-plans';
+import { isUnlimited } from './constants/email-plans';
 import { randomBytes } from 'crypto';
 
 export interface DnsRecords {
@@ -42,6 +43,26 @@ export class CustomDomainService {
     ) {}
 
     /**
+     * Map database plan enum to subscription plan config key
+     * Database enums: FREE, STARTER, PRO, ENTERPRISE
+     * Config keys:    FREE, STANDARD, TEAM, PRO, ULTIMATE
+     */
+    private mapPlanToConfig(planId: string): string {
+        const mapping: Record<string, string> = {
+            'FREE': 'FREE',
+            'STARTER': 'STANDARD',
+            'PRO': 'PRO',
+            'ENTERPRISE': 'ULTIMATE',
+            'STANDARD': 'STANDARD',
+            'TEAM': 'TEAM',
+            'ULTIMATE': 'ULTIMATE',
+            'DEVELOPER': 'STANDARD',
+            'STARTUP': 'TEAM',
+        };
+        return mapping[planId] || planId;
+    }
+
+    /**
      * Check if user can add more custom domains
      */
     async checkDomainLimit(
@@ -49,14 +70,16 @@ export class CustomDomainService {
         planId: string,
         currentCount: number,
     ): Promise<{ canAdd: boolean; maxDomains: number }> {
-        const plan = EMAIL_PLANS[planId];
+        const mappedPlan = this.mapPlanToConfig(planId);
+        const plan = SUBSCRIPTION_PLANS[mappedPlan];
         if (!plan) {
+            this.logger.warn(`Unknown plan "${planId}" (mapped: "${mappedPlan}"), defaulting to 0 domains`);
             return { canAdd: false, maxDomains: 0 };
         }
 
-        const maxDomains = isUnlimited(plan.limits.customDomains)
+        const maxDomains = isUnlimited(plan.customDomains)
             ? Infinity
-            : plan.limits.customDomains;
+            : plan.customDomains;
 
         return {
             canAdd: maxDomains === Infinity || currentCount < maxDomains,

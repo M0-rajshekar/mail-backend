@@ -28,7 +28,7 @@ import { ApiKeyGuard } from '../auth/api-key.guard';
 import { CustomDomainService } from './custom-domain.service';
 import { EmailService } from './email.service';
 import { PrismaService } from '../services/prisma.service';
-import { allowsCustomDomains } from './constants/email-plans';
+import { SUBSCRIPTION_PLANS } from '../payments/constants/subscription-plans';
 
 class RegisterDomainDto {
     @ApiProperty({ description: 'Domain to register (e.g., yourcompany.com)' })
@@ -72,7 +72,24 @@ export class CustomDomainController {
         const planId = user.currentPlan;
         const currentDomains = user.CustomDomains.length;
 
-        if (!allowsCustomDomains(planId)) {
+        // Map database plan enum to config key
+        // Database: FREE, STARTER, PRO, ENTERPRISE
+        // Config:   FREE, STANDARD, TEAM, PRO, ULTIMATE
+        const planMapping: Record<string, string> = {
+            'FREE': 'FREE',
+            'STARTER': 'STANDARD',
+            'PRO': 'PRO',
+            'ENTERPRISE': 'ULTIMATE',
+            'STANDARD': 'STANDARD',
+            'TEAM': 'TEAM',
+            'ULTIMATE': 'ULTIMATE',
+            'DEVELOPER': 'STANDARD',
+            'STARTUP': 'TEAM',
+        };
+        const mappedPlan = planMapping[planId] || planId;
+        const planConfig = SUBSCRIPTION_PLANS[mappedPlan];
+
+        if (!planConfig || planConfig.customDomains === 0) {
             throw new ForbiddenException(
                 'Your plan does not support custom domains. Upgrade to enable this feature.',
             );
