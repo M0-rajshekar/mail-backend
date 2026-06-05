@@ -24,6 +24,7 @@ import { DomainStatus, InboxStatus } from 'generated/prisma';
 import { ConfigService } from '@nestjs/config';
 import { SUBSCRIPTION_PLANS } from '../payments/constants/subscription-plans';
 import { isUnlimited } from './constants/email-plans';
+import { CloudflareZonesService } from './cloudflare-zones.service';
 import { randomBytes } from 'crypto';
 
 export interface DnsRecords {
@@ -40,6 +41,7 @@ export class CustomDomainService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly configService: ConfigService,
+        private readonly cloudflareZones: CloudflareZonesService,
     ) {}
 
     /**
@@ -291,10 +293,11 @@ export class CustomDomainService {
     }
 
     /**
-     * Verify domain ownership via TXT record
+     * Verify domain ownership via DNS TXT record
      * 
-     * In production: queries DNS to verify TXT record exists.
-     * In development: auto-verifies if configured.
+     * Step 1: Check if DNS TXT record exists (actual DNS lookup)
+     * Step 2: Check if MX records point to Cloudflare
+     * Step 3: If verified, auto-onboard Cloudflare email routing
      */
     async verifyDomain(userId: string, domainId: string) {
         const domain = await this.prisma.customDomain.findFirst({
@@ -306,56 +309,91 @@ export class CustomDomainService {
         }
 
         if (domain.verified) {
-            return {
-                verified: true,
-                message: 'Domain is already verified',
-            };
+            return { verified: true, message: 'Domain is already verified' };
         }
 
-        // Check if domain is in pending state (not failed)
         if (domain.status === DomainStatus.FAILED) {
             throw new BadRequestException(
-                'Domain verification previously failed. Delete and re-register to try again.'
+                'Domain verification previously failed. Delete and re-register to try again.',
             );
         }
 
-        // In production: query DNS
-        // For dev/staging: allow auto-verify via env flag
-        const autoVerify = this.configService.get<string>('AUTO_VERIFY_DOMAINS') === 'true';
-        let isVerified = false;
+        const steps: string[] = [];
+        let allChecksPassed = true;
 
-        if (autoVerify) {
-            isVerified = true;
-            this.logger.warn(`Auto-verifying domain ${domain.domain} (AUTO_VERIFY_DOMAINS=true)`);
+        // Check 1: DNS TXT verification record
+        const txtVerified = await this.cloudflareZones.verifyDnsTxt(
+            domain.domain,
+            domain.verificationTxt,
+        );
+
+        if (txtVerified) {
+            steps.push('TXT verification record found in DNS');
         } else {
-            isVerified = await this.checkDnsVerification(
-                domain.domain,
-                domain.verificationTxt,
+            steps.push(
+                'TXT record not found. Add this TXT record: ' +
+                    domain.verificationTxt,
             );
+            allChecksPassed = false;
         }
 
-        if (isVerified) {
+        // Check 2: MX records
+        const mxCheck = await this.cloudflareZones.verifyMxRecords(domain.domain);
+        if (mxCheck.valid) {
+            steps.push(`MX records configured: ${mxCheck.records.join(', ')}`);
+        } else {
+            steps.push(
+                'MX records not found. Add MX records pointing to route1.mx.cloudflare.net, route2.mx.cloudflare.net, route3.mx.cloudflare.net',
+            );
+            allChecksPassed = false;
+        }
+
+        // Check 3: SPF record
+        const spfCheck = await this.verifySpfRecord(domain.domain);
+        if (spfCheck) {
+            steps.push('SPF record includes Cloudflare');
+        } else {
+            steps.push('SPF record missing or does not include _spf.mx.cloudflare.net');
+            allChecksPassed = false;
+        }
+
+        if (allChecksPassed) {
+            // Auto-onboard Cloudflare email routing
+            try {
+                const workerName = this.configService.get<string>('CLOUDFLARE_WORKER_NAME') || 'aged-rice-0919';
+                await this.cloudflareZones.onboardDomainForEmail(domain.domain, workerName);
+                steps.push('Cloudflare Email Routing auto-configured');
+            } catch (e: any) {
+                steps.push(
+                    `Cloudflare Email Routing setup skipped: ${e.message}. Run manually: wrangler email routing enable ${domain.domain}`,
+                );
+            }
+
             await this.prisma.customDomain.update({
                 where: { id: domainId },
                 data: {
                     verified: true,
-                    status: DomainStatus.ACTIVE,
                     mxConfigured: true,
+                    status: DomainStatus.ACTIVE,
                 },
             });
 
-            this.logger.log(`Domain verified: ${domain.domain} for user ${userId}`);
+            this.logger.log(
+                `Domain verified and onboarded: ${domain.domain} for user ${userId}`,
+            );
 
             return {
                 verified: true,
-                message: 'Domain verified successfully. You can now create inboxes using this domain.',
+                message: 'Domain verified and email routing configured. You can now create inboxes using this domain.',
+                steps,
             };
         }
 
-        // Increment verification attempt or mark failed after N tries
         return {
             verified: false,
-            message: 'Verification failed. Ensure the TXT record is correctly added and DNS has propagated (can take 5-30 minutes).',
+            message: 'Verification incomplete. Check the DNS records below and try again.',
+            dnsRecords: this.generateDnsRecords(domain.domain, domain.verificationTxt),
+            steps,
         };
     }
 
@@ -596,6 +634,34 @@ export class CustomDomainService {
         return inbox;
     }
 
+    /**
+     * Verify SPF record includes Cloudflare
+     */
+    private async verifySpfRecord(domain: string): Promise<boolean> {
+        try {
+            const dns = await import('dns').then((m) => m.promises);
+            const records = await dns.resolveTxt(domain);
+            
+            return records.some((record) =>
+                record.some((entry) => entry.includes('v=spf1') && entry.includes('_spf.mx.cloudflare.net')),
+            );
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Check DNS TXT record for verification
+     * 
+     * TODO: Implement actual DNS lookup using dns.promises or a library like `dns-packet`
+     * For now returns false (manual verification required)
+     */
+    private async checkDnsVerification(domain: string, expectedTxt: string): Promise<boolean> {
+        this.logger.log(`Checking DNS TXT for ${domain}, expecting: ${expectedTxt}`);
+        // Production: use Node.js dns.resolveTxt or external API
+        return false;
+    }
+
     // ─── Helpers ───────────────────────────────────────────────────
 
     /**
@@ -669,7 +735,6 @@ export class CustomDomainService {
             'agentmail.io',
             'agentmail.com',
             'agentmail.to',
-            'trueprop.xyz',
         ];
         
         return reservedDomains.some(
@@ -697,17 +762,5 @@ export class CustomDomainService {
                 { host: 'cfmail._domainkey', value: 'v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC1TaNgLlSyQMNWVLNLvy/neHA1q8dN9NvY8i2jH8yt9mJxv28dfceQJ02f2T0q5U7r5Y0wZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QIDAQAB' },
             ],
         };
-    }
-
-    /**
-     * Check DNS TXT record for verification
-     * 
-     * TODO: Implement actual DNS lookup using dns.promises or a library like `dns-packet`
-     * For now returns false (manual verification required)
-     */
-    private async checkDnsVerification(domain: string, expectedTxt: string): Promise<boolean> {
-        this.logger.log(`Checking DNS TXT for ${domain}, expecting: ${expectedTxt}`);
-        // Production: use Node.js dns.resolveTxt or external API
-        return false;
     }
 }

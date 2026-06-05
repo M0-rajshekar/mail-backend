@@ -7,6 +7,7 @@ import { ImapSmtpController } from './imap-smtp.controller';
 import { CustomDomainController } from './custom-domain.controller';
 import { CustomDomainService } from './custom-domain.service';
 import { CloudflareEmailService } from './cloudflare-email.service';
+import { CloudflareZonesService } from './cloudflare-zones.service';
 import { AttachmentStorageService } from './attachment-storage.service';
 import { WebhookDeliveryService } from './webhook-delivery.service';
 import { EmailParserService } from './email-parser.service';
@@ -20,6 +21,7 @@ import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationServi
         EmailService,
         EmailGateway,
         CloudflareEmailService,
+        CloudflareZonesService,
         AttachmentStorageService,
         WebhookDeliveryService,
         EmailParserService,
