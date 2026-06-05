@@ -134,8 +134,40 @@ export class CloudflareZonesService {
     }
 
     /**
-     * Get Zone ID for a domain (existing zone)
+     * Get zone details including nameservers
      */
+    async getZoneDetails(domain: string): Promise<{
+        zoneId: string;
+        nameservers: string[];
+        status: string;
+    } | null> {
+        const zoneId = await this.getZoneId(domain);
+        if (!zoneId) return null;
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get<CfResponse<Zone>>(
+                    `${this.baseUrl}/zones/${zoneId}`,
+                    { headers: this.getHeaders() },
+                ),
+            );
+
+            if (!response.data.success) return null;
+
+            const zone = response.data.result;
+            return {
+                zoneId: zone.id,
+                nameservers: zone.name_servers || [],
+                status: zone.status,
+            };
+        } catch (error: any) {
+            this.logger.error(`Failed to get zone details for ${domain}: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Get Zone ID for a domain (existing zone) */
     async getZoneId(domain: string): Promise<string | null> {
         try {
             const response = await firstValueFrom(

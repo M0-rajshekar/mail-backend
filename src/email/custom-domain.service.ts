@@ -205,19 +205,28 @@ export class CustomDomainService {
         // Generate unique verification TXT record
         const verificationTxt = `agentmail-verify=${randomBytes(24).toString('hex')}`;
 
-        // Step 1: Try to create Cloudflare zone and get nameservers
+        // Step 1: Get nameservers from Cloudflare
         let nameservers: string[] = [];
-        let zoneId: string | undefined;
 
         try {
-            const zoneResult = await this.cloudflareZones.createZone(normalizedDomain);
-            if (zoneResult) {
-                zoneId = zoneResult.zoneId;
+            // Check if zone already exists in Cloudflare
+            let zoneResult = await this.cloudflareZones.getZoneDetails(normalizedDomain);
+            
+            if (!zoneResult) {
+                // Zone doesn't exist — create it
+                zoneResult = await this.cloudflareZones.createZone(normalizedDomain);
+            }
+
+            if (zoneResult?.nameservers && zoneResult.nameservers.length > 0) {
                 nameservers = zoneResult.nameservers;
-                this.logger.log(`Cloudflare zone created for ${normalizedDomain}, NS: ${nameservers.join(', ')}`);
+                this.logger.log(
+                    `Nameservers for ${normalizedDomain}: ${nameservers.join(', ')}`,
+                );
             }
         } catch (e: any) {
-            this.logger.warn(`Could not create Cloudflare zone for ${normalizedDomain}: ${e.message}. User must add domain to Cloudflare manually.`);
+            this.logger.warn(
+                `Could not get nameservers for ${normalizedDomain}: ${e.message}`,
+            );
         }
 
         // Step 2: Create domain record in our database
