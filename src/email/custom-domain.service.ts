@@ -382,7 +382,25 @@ export class CustomDomainService {
         // Check if we created a Cloudflare zone for this domain
         const zoneId = await this.cloudflareZones.getZoneId(domain.domain);
 
-        // Step 1: Auto-provision DNS if zone exists
+        // Step 1: Verify nameservers are actually pointing to Cloudflare
+        const expectedNameservers = domain.nameservers || [];
+        const currentNameservers = await this.getCurrentNameservers(domain.domain);
+        const nameserversMatch = expectedNameservers.length > 0 && 
+            expectedNameservers.every(ns => currentNameservers.includes(ns.toLowerCase()));
+
+        if (!nameserversMatch) {
+            return {
+                verified: false,
+                message: `Nameservers not yet propagated. Current nameservers: ${currentNameservers.join(', ') || 'not found'}. Please update your registrar to use: ${expectedNameservers.join(', ')}`,
+                verificationTxt: domain.verificationTxt,
+                dnsRecords: this.generateDnsRecords(domain.domain, domain.verificationTxt),
+                nameservers: domain.nameservers,
+                steps: ['Waiting for nameserver propagation at registrar...'],
+            };
+        }
+        steps.push('Nameservers verified');
+
+        // Step 2: Auto-provision DNS if zone exists
         if (!zoneId) {
             // No zone found — check DNS records manually for domains added outside Cloudflare
             const txtVerified = await this.cloudflareZones.verifyDnsTxt(domain.domain, domain.verificationTxt);
@@ -512,6 +530,21 @@ export class CustomDomainService {
         }
 
         return this.generateDnsRecords(domain.domain, domain.verificationTxt);
+    }
+
+    /**
+     * Get current nameservers for a domain via DNS lookup
+     * Used to verify registrar nameserver change has propagated
+     */
+    private async getCurrentNameservers(domain: string): Promise<string[]> {
+        try {
+            const dns = await import('dns').then((m) => m.promises);
+            const nsRecords = await dns.resolveNs(domain);
+            return nsRecords.map(ns => ns.toLowerCase());
+        } catch (error: any) {
+            this.logger.debug(`Could not resolve NS for ${domain}: ${error.message}`);
+            return [];
+        }
     }
 
     /**
