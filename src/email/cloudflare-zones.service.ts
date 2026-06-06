@@ -114,6 +114,17 @@ export class CloudflareZonesService {
                     .map((e) => `${e.code}: ${e.message}`)
                     .join('; ');
                 this.logger.error(`Failed to create zone for ${domain}: ${errors}`);
+                
+                // Check if zone already exists (code 1061)
+                const alreadyExists = response.data.errors?.some(e => 
+                    e.code === 1061 || e.message?.includes('already exists')
+                );
+                
+                if (alreadyExists) {
+                    this.logger.log(`Zone for ${domain} already exists, fetching existing zone...`);
+                    return this.getZoneDetails(domain);
+                }
+                
                 return null;
             }
 
@@ -129,6 +140,15 @@ export class CloudflareZonesService {
             };
         } catch (error: any) {
             this.logger.error(`Failed to create zone for ${domain}: ${error.message}`);
+            
+            // Check if error is because zone already exists
+            if (error.response?.data?.errors?.some(e => 
+                e.code === 1061 || e.message?.includes('already exists')
+            )) {
+                this.logger.log(`Zone for ${domain} already exists, fetching existing zone...`);
+                return this.getZoneDetails(domain);
+            }
+            
             return null;
         }
     }
@@ -175,7 +195,7 @@ export class CloudflareZonesService {
                     `${this.baseUrl}/zones`,
                     {
                         headers: this.getHeaders(),
-                        params: { name: domain, status: 'active' },
+                        params: { name: domain }, // Don't filter by status - zone may be pending
                     },
                 ),
             );
