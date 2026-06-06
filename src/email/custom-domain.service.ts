@@ -389,13 +389,24 @@ export class CustomDomainService {
             expectedNameservers.every(ns => currentNameservers.includes(ns.toLowerCase()));
 
         if (!nameserversMatch) {
+            const currentNsStr = currentNameservers.length > 0 
+                ? currentNameservers.join(', ') 
+                : 'not yet detected';
+            
             return {
                 verified: false,
-                message: `Nameservers not yet propagated. Current nameservers: ${currentNameservers.join(', ') || 'not found'}. Please update your registrar to use: ${expectedNameservers.join(', ')}`,
+                message: `Waiting for your registrar to propagate your new nameservers. We are verifying that your domain is pointing to Cloudflare. This typically takes 1-2 hours but may take up to 24 hours, depending on your registrar.`,
+                currentNameservers: currentNameservers,
+                expectedNameservers: expectedNameservers,
                 verificationTxt: domain.verificationTxt,
                 dnsRecords: this.generateDnsRecords(domain.domain, domain.verificationTxt),
                 nameservers: domain.nameservers,
-                steps: ['Waiting for nameserver propagation at registrar...'],
+                steps: [
+                    `Current nameservers: ${currentNsStr}`,
+                    `Expected nameservers: ${expectedNameservers.join(', ')}`,
+                    'Waiting for nameserver propagation at registrar...',
+                    'This typically takes 1-2 hours but may take up to 24 hours'
+                ],
             };
         }
         steps.push('Nameservers verified');
