@@ -79,16 +79,16 @@ export class CustomDomainController {
         // SubscriptionTier: FREE, STANDARD, TEAM, PRO, ULTIMATE
         // Config: FREE, STANDARD, TEAM, PRO, ULTIMATE
         const planMapping: Record<string, string> = {
-            'FREE': 'FREE',
-            'STARTER': 'STANDARD',
-            'PRO': 'PRO',
-            'ENTERPRISE': 'ULTIMATE',
-            'STANDARD': 'STANDARD',
-            'TEAM': 'TEAM',
-            'ULTIMATE': 'ULTIMATE',
-            'DEVELOPER': 'STANDARD',
-            'STARTUP': 'TEAM',
-            'SUBSCRIPTION': 'PRO',  // User on subscription — check actual tier from Subscription record
+            FREE: 'FREE',
+            STARTER: 'STANDARD',
+            PRO: 'PRO',
+            ENTERPRISE: 'ULTIMATE',
+            STANDARD: 'STANDARD',
+            TEAM: 'TEAM',
+            ULTIMATE: 'ULTIMATE',
+            DEVELOPER: 'STANDARD',
+            STARTUP: 'TEAM',
+            SUBSCRIPTION: 'PRO', // User on subscription — check actual tier from Subscription record
         };
         const mappedPlan = planMapping[planId] || planId;
         const planConfig = SUBSCRIPTION_PLANS[mappedPlan];
@@ -101,11 +101,12 @@ export class CustomDomainController {
 
         // Check domain limit
         const plan = user.Subscription[0]?.subscriptionPlan || planId;
-        const { canAdd, maxDomains } = await this.customDomainService.checkDomainLimit(
-            userId,
-            plan,
-            currentDomains,
-        );
+        const { canAdd, maxDomains } =
+            await this.customDomainService.checkDomainLimit(
+                userId,
+                plan,
+                currentDomains,
+            );
 
         if (!canAdd) {
             throw new ForbiddenException(
@@ -124,7 +125,9 @@ export class CustomDomainController {
     }
 
     @Get('verified/list')
-    @ApiOperation({ summary: 'Get verified domains for inbox creation dropdown' })
+    @ApiOperation({
+        summary: 'Get verified domains for inbox creation dropdown',
+    })
     async getVerifiedDomains(@Req() req: Request) {
         const userId = req.user as string;
         return this.customDomainService.getVerifiedDomainsWithDetails(userId);

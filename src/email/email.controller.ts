@@ -25,7 +25,13 @@ import {
     ApiProperty,
     ApiPropertyOptional,
 } from '@nestjs/swagger';
-import { IsString, IsOptional, IsArray, IsNotEmpty, ArrayMinSize } from 'class-validator';
+import {
+    IsString,
+    IsOptional,
+    IsArray,
+    IsNotEmpty,
+    ArrayMinSize,
+} from 'class-validator';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 
 class CreateInboxDto {
@@ -39,7 +45,9 @@ class CreateInboxDto {
     @IsString()
     displayName?: string;
 
-    @ApiPropertyOptional({ description: 'Custom domain ID to use (omit for default domain)' })
+    @ApiPropertyOptional({
+        description: 'Custom domain ID to use (omit for default domain)',
+    })
     @IsOptional()
     @IsString()
     customDomainId?: string;
@@ -92,7 +100,9 @@ class RegisterWebhookDto {
     @IsString({ each: true })
     events?: string[];
 
-    @ApiPropertyOptional({ description: 'Webhook secret for signature verification' })
+    @ApiPropertyOptional({
+        description: 'Webhook secret for signature verification',
+    })
     @IsOptional()
     @IsString()
     secret?: string;
@@ -211,7 +221,10 @@ export class EmailController {
 
     @Put('messages/:id/restore')
     @ApiOperation({ summary: 'Restore message from trash' })
-    async restoreFromTrash(@Param('id') messageId: string, @Req() req: Request) {
+    async restoreFromTrash(
+        @Param('id') messageId: string,
+        @Req() req: Request,
+    ) {
         const userId = req.user as string;
         return this.emailService.restoreFromTrash(userId, messageId);
     }
@@ -299,14 +312,16 @@ export class EmailController {
                 } catch (parseError) {
                     // Raw email failed to parse, fall back to basic parsed data if available
                     if (body.from && body.subject) {
-                        return await this.emailService.handleInboundEmailParsed({
-                            emailAddress: body.emailAddress,
-                            from: body.from,
-                            subject: body.subject,
-                            body: body.body || '',
-                            bodyHtml: body.bodyHtml,
-                            headers: body.headers,
-                        });
+                        return await this.emailService.handleInboundEmailParsed(
+                            {
+                                emailAddress: body.emailAddress,
+                                from: body.from,
+                                subject: body.subject,
+                                body: body.body || '',
+                                bodyHtml: body.bodyHtml,
+                                headers: body.headers,
+                            },
+                        );
                     }
                     throw parseError;
                 }
@@ -322,7 +337,10 @@ export class EmailController {
                 headers: body.headers,
             });
         } catch (error: any) {
-            if (error instanceof BadRequestException || error instanceof NotFoundException) {
+            if (
+                error instanceof BadRequestException ||
+                error instanceof NotFoundException
+            ) {
                 throw error;
             }
             throw new InternalServerErrorException(
@@ -385,7 +403,10 @@ export class EmailController {
         @Res() res: Response,
     ) {
         // Verify user owns the message
-        const message = await this.emailService.getMessage(req.user as string, messageId);
+        const message = await this.emailService.getMessage(
+            req.user as string,
+            messageId,
+        );
 
         // Find attachment in message metadata
         const attachments = (message as any).attachments || [];

@@ -55,7 +55,9 @@ export class CloudflareEmailService {
      */
     async sendEmail(params: SendEmailParams): Promise<{ messageId: string }> {
         const apiToken = this.configService.get<string>('CLOUDFLARE_API_TOKEN');
-        const accountId = this.configService.get<string>('CLOUDFLARE_ACCOUNT_ID');
+        const accountId = this.configService.get<string>(
+            'CLOUDFLARE_ACCOUNT_ID',
+        );
 
         if (!apiToken || !accountId) {
             throw new BadRequestException(
@@ -119,7 +121,9 @@ export class CloudflareEmailService {
             const data = response.data;
 
             if (!data.success) {
-                const errors = data.errors.map(e => `${e.code}: ${e.message}`).join('; ');
+                const errors = data.errors
+                    .map((e) => `${e.code}: ${e.message}`)
+                    .join('; ');
                 throw new Error(`Cloudflare Email Service error: ${errors}`);
             }
 
@@ -130,19 +134,30 @@ export class CloudflareEmailService {
             // REST API does not return a messageId. Use a Cloudflare-prefixed ID for tracking.
             return { messageId: `cf-${Date.now()}` };
         } catch (error: any) {
-            this.logger.error('Cloudflare Email Service request failed:', error.message);
+            this.logger.error(
+                'Cloudflare Email Service request failed:',
+                error.message,
+            );
 
             if (error.response) {
                 const status = error.response.status;
                 const cfErrors = error.response.data?.errors;
                 if (cfErrors && Array.isArray(cfErrors)) {
-                    const details = cfErrors.map((e: any) => `${e.code}: ${e.message}`).join('; ');
-                    throw new BadRequestException(`Cloudflare Email Service error (${status}): ${details}`);
+                    const details = cfErrors
+                        .map((e: any) => `${e.code}: ${e.message}`)
+                        .join('; ');
+                    throw new BadRequestException(
+                        `Cloudflare Email Service error (${status}): ${details}`,
+                    );
                 }
-                throw new BadRequestException(`Cloudflare Email Service error (${status}): ${error.message}`);
+                throw new BadRequestException(
+                    `Cloudflare Email Service error (${status}): ${error.message}`,
+                );
             }
 
-            throw new BadRequestException(`Email sending failed: ${error.message}`);
+            throw new BadRequestException(
+                `Email sending failed: ${error.message}`,
+            );
         }
     }
 }

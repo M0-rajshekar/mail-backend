@@ -1,7 +1,7 @@
 /**
  * Cloudflare Zones & DNS Service
  * Integrates with Cloudflare API to manage zones, DNS records, and email routing
- * 
+ *
  * Uses the Cloudflare REST API with Bearer token authentication.
  * API Reference: https://developers.cloudflare.com/api/
  */
@@ -95,7 +95,9 @@ export class CloudflareZonesService {
         status: string;
     } | null> {
         try {
-            const accountId = this.configService.get<string>('CLOUDFLARE_ACCOUNT_ID');
+            const accountId = this.configService.get<string>(
+                'CLOUDFLARE_ACCOUNT_ID',
+            );
 
             const response = await firstValueFrom(
                 this.httpService.post<CfResponse<Zone>>(
@@ -113,18 +115,24 @@ export class CloudflareZonesService {
                 const errors = response.data.errors
                     .map((e) => `${e.code}: ${e.message}`)
                     .join('; ');
-                this.logger.error(`Failed to create zone for ${domain}: ${errors}`);
-                
-                // Check if zone already exists (code 1061)
-                const alreadyExists = response.data.errors?.some(e => 
-                    e.code === 1061 || e.message?.includes('already exists')
+                this.logger.error(
+                    `Failed to create zone for ${domain}: ${errors}`,
                 );
-                
+
+                // Check if zone already exists (code 1061)
+                const alreadyExists = response.data.errors?.some(
+                    (e) =>
+                        e.code === 1061 ||
+                        e.message?.includes('already exists'),
+                );
+
                 if (alreadyExists) {
-                    this.logger.log(`Zone for ${domain} already exists, fetching existing zone...`);
+                    this.logger.log(
+                        `Zone for ${domain} already exists, fetching existing zone...`,
+                    );
                     return this.getZoneDetails(domain);
                 }
-                
+
                 return null;
             }
 
@@ -139,16 +147,24 @@ export class CloudflareZonesService {
                 status: zone.status,
             };
         } catch (error: any) {
-            this.logger.error(`Failed to create zone for ${domain}: ${error.message}`);
-            
+            this.logger.error(
+                `Failed to create zone for ${domain}: ${error.message}`,
+            );
+
             // Check if error is because zone already exists
-            if (error.response?.data?.errors?.some(e => 
-                e.code === 1061 || e.message?.includes('already exists')
-            )) {
-                this.logger.log(`Zone for ${domain} already exists, fetching existing zone...`);
+            if (
+                error.response?.data?.errors?.some(
+                    (e) =>
+                        e.code === 1061 ||
+                        e.message?.includes('already exists'),
+                )
+            ) {
+                this.logger.log(
+                    `Zone for ${domain} already exists, fetching existing zone...`,
+                );
                 return this.getZoneDetails(domain);
             }
-            
+
             return null;
         }
     }
@@ -181,7 +197,9 @@ export class CloudflareZonesService {
                 status: zone.status,
             };
         } catch (error: any) {
-            this.logger.error(`Failed to get zone details for ${domain}: ${error.message}`);
+            this.logger.error(
+                `Failed to get zone details for ${domain}: ${error.message}`,
+            );
             return null;
         }
     }
@@ -208,7 +226,9 @@ export class CloudflareZonesService {
 
             return zones[0].id;
         } catch (error: any) {
-            this.logger.error(`Failed to get zone ID for ${domain}: ${error.message}`);
+            this.logger.error(
+                `Failed to get zone ID for ${domain}: ${error.message}`,
+            );
             return null;
         }
     }
@@ -309,10 +329,10 @@ export class CloudflareZonesService {
     ): Promise<EmailRoutingRule | null> {
         try {
             const body = {
-                actions: [{ type: 'worker' as const, value: [options.workerName] }],
-                matchers: [
-                    options.matcher || { type: 'all' as const },
+                actions: [
+                    { type: 'worker' as const, value: [options.workerName] },
                 ],
+                matchers: [options.matcher || { type: 'all' as const }],
                 enabled: true,
                 name: `AgentMail — Route to ${options.workerName}`,
             };
@@ -338,7 +358,9 @@ export class CloudflareZonesService {
             );
             return response.data.result;
         } catch (error: any) {
-            this.logger.error(`Failed to create routing rule: ${error.message}`);
+            this.logger.error(
+                `Failed to create routing rule: ${error.message}`,
+            );
             return null;
         }
     }
@@ -356,7 +378,9 @@ export class CloudflareZonesService {
             );
             return response.data.success;
         } catch (error: any) {
-            this.logger.error(`Failed to delete routing rule: ${error.message}`);
+            this.logger.error(
+                `Failed to delete routing rule: ${error.message}`,
+            );
             return false;
         }
     }
@@ -381,7 +405,7 @@ export class CloudflareZonesService {
 
     /**
      * FULL ONBOARDING: Setup a domain for AgentMail email routing
-     * 
+     *
      * This performs the complete Cloudflare setup:
      * 1. Get or verify zone exists
      * 2. Add MX records for email routing
@@ -427,8 +451,8 @@ export class CloudflareZonesService {
 
         // Check for existing MX records from other providers (Zoho, Google, Microsoft, etc.)
         const allExistingMx = existingRecords.filter((r) => r.type === 'MX');
-        const existingCloudflareMx = allExistingMx.filter(
-            (r) => r.content?.includes('mx.cloudflare.net'),
+        const existingCloudflareMx = allExistingMx.filter((r) =>
+            r.content?.includes('mx.cloudflare.net'),
         );
         const otherProviderMx = allExistingMx.filter(
             (r) => !r.content?.includes('mx.cloudflare.net'),
@@ -439,22 +463,41 @@ export class CloudflareZonesService {
             const providers: string[] = otherProviderMx.map((r) => {
                 const content = r.content?.toLowerCase() || '';
                 if (content.includes('zoho')) return 'Zoho Mail';
-                if (content.includes('google') || content.includes('googlemail')) return 'Google Workspace (Gmail)';
-                if (content.includes('outlook') || content.includes('protection.outlook')) return 'Microsoft 365 (Outlook)';
+                if (
+                    content.includes('google') ||
+                    content.includes('googlemail')
+                )
+                    return 'Google Workspace (Gmail)';
+                if (
+                    content.includes('outlook') ||
+                    content.includes('protection.outlook')
+                )
+                    return 'Microsoft 365 (Outlook)';
                 if (content.includes('protonmail')) return 'ProtonMail';
                 if (content.includes('fastmail')) return 'Fastmail';
-                if (content.includes('namecheap')) return 'Namecheap Private Email';
+                if (content.includes('namecheap'))
+                    return 'Namecheap Private Email';
                 if (content.includes('crazydomains')) return 'Crazy Domains';
                 if (content.includes('hostinger')) return 'Hostinger Email';
                 return `Other (${r.content})`;
             });
             const uniqueProviders = [...new Set(providers)];
-            
-            steps.push(`⚠️  Detected existing email provider(s): ${uniqueProviders.join(', ')}`);
-            steps.push(`   Existing MX records: ${otherProviderMx.map(r => r.content).join(', ')}`);
-            steps.push(`   Cloudflare MX records will be added with priority 10/20/30`);
-            steps.push(`   ⚠️  WARNING: Having multiple MX providers may cause emails to be split between services`);
-            steps.push(`   Recommendation: Remove other provider MX records to ensure all emails route through Cloudflare`);
+
+            steps.push(
+                `⚠️  Detected existing email provider(s): ${uniqueProviders.join(', ')}`,
+            );
+            steps.push(
+                `   Existing MX records: ${otherProviderMx.map((r) => r.content).join(', ')}`,
+            );
+            steps.push(
+                `   Cloudflare MX records will be added with priority 10/20/30`,
+            );
+            steps.push(
+                `   ⚠️  WARNING: Having multiple MX providers may cause emails to be split between services`,
+            );
+            steps.push(
+                `   Recommendation: Remove other provider MX records to ensure all emails route through Cloudflare`,
+            );
         }
 
         if (existingCloudflareMx.length === 0) {
@@ -468,18 +511,25 @@ export class CloudflareZonesService {
                 });
 
                 if (result) {
-                    steps.push(`MX record added: ${mx.content} (priority: ${mx.priority})`);
+                    steps.push(
+                        `MX record added: ${mx.content} (priority: ${mx.priority})`,
+                    );
                 } else {
                     errors.push(`Failed to add MX record: ${mx.content}`);
                 }
             }
         } else {
-            steps.push(`Cloudflare MX records already exist (${existingCloudflareMx.length})`);
+            steps.push(
+                `Cloudflare MX records already exist (${existingCloudflareMx.length})`,
+            );
         }
 
         // Step 4: Add/merge SPF record
         const existingSpf = existingRecords.find(
-            (r) => r.type === 'TXT' && r.name === domain && r.content?.includes('v=spf1'),
+            (r) =>
+                r.type === 'TXT' &&
+                r.name === domain &&
+                r.content?.includes('v=spf1'),
         );
 
         const spfValue = 'v=spf1 include:_spf.mx.cloudflare.net ~all';
@@ -502,13 +552,25 @@ export class CloudflareZonesService {
             const spfContent = existingSpf.content || '';
             const otherProviders: string[] = [];
             if (spfContent.includes('zoho')) otherProviders.push('Zoho Mail');
-            if (spfContent.includes('google') || spfContent.includes('_spf.google')) otherProviders.push('Google Workspace');
-            if (spfContent.includes('outlook') || spfContent.includes('spf.protection.outlook')) otherProviders.push('Microsoft 365');
-            if (spfContent.includes('protonmail')) otherProviders.push('ProtonMail');
-            if (spfContent.includes('fastmail')) otherProviders.push('Fastmail');
-            
+            if (
+                spfContent.includes('google') ||
+                spfContent.includes('_spf.google')
+            )
+                otherProviders.push('Google Workspace');
+            if (
+                spfContent.includes('outlook') ||
+                spfContent.includes('spf.protection.outlook')
+            )
+                otherProviders.push('Microsoft 365');
+            if (spfContent.includes('protonmail'))
+                otherProviders.push('ProtonMail');
+            if (spfContent.includes('fastmail'))
+                otherProviders.push('Fastmail');
+
             if (otherProviders.length > 0) {
-                steps.push(`⚠️  Existing SPF includes: ${otherProviders.join(', ')}`);
+                steps.push(
+                    `⚠️  Existing SPF includes: ${otherProviders.join(', ')}`,
+                );
                 steps.push(`   Merging with Cloudflare SPF...`);
             }
 
@@ -528,7 +590,9 @@ export class CloudflareZonesService {
                 });
 
                 if (result) {
-                    steps.push(`SPF record merged (kept: ${otherProviders.join(', ')}, added: Cloudflare)`);
+                    steps.push(
+                        `SPF record merged (kept: ${otherProviders.join(', ')}, added: Cloudflare)`,
+                    );
                 } else {
                     errors.push('Failed to update SPF record');
                 }
@@ -541,18 +605,25 @@ export class CloudflareZonesService {
         const dmarcRecord = existingRecords.find(
             (r) => r.type === 'TXT' && r.name === '_dmarc.' + domain,
         );
-        
+
         if (!dmarcRecord) {
-            const dmarcValue = 'v=DMARC1; p=quarantine; rua=mailto:dmarc@' + domain + '; ruf=mailto:dmarc@' + domain + '; fo=1';
+            const dmarcValue =
+                'v=DMARC1; p=quarantine; rua=mailto:dmarc@' +
+                domain +
+                '; ruf=mailto:dmarc@' +
+                domain +
+                '; fo=1';
             const result = await this.createDnsRecord(zoneId, {
                 type: 'TXT',
                 name: '_dmarc.' + domain,
                 content: dmarcValue,
                 ttl: 1,
             });
-            
+
             if (result) {
-                steps.push('DMARC record added (prevents corporate email blocking)');
+                steps.push(
+                    'DMARC record added (prevents corporate email blocking)',
+                );
             } else {
                 errors.push('Failed to add DMARC record');
             }
@@ -562,26 +633,38 @@ export class CloudflareZonesService {
 
         // Step 4.6: Check for existing DKIM from other providers
         const dkimRecords = existingRecords.filter(
-            (r) => r.type === 'TXT' && r.name?.startsWith('dkim.') || r.name?.startsWith('_domainkey'),
+            (r) =>
+                (r.type === 'TXT' && r.name?.startsWith('dkim.')) ||
+                r.name?.startsWith('_domainkey'),
         );
-        
+
         if (dkimRecords.length > 0) {
-            steps.push(`⚠️  Found ${dkimRecords.length} existing DKIM record(s) - these may belong to another email provider`);
-            steps.push(`   DKIM names: ${dkimRecords.map(r => r.name).join(', ')}`);
-            steps.push(`   Cloudflare Email Routing handles DKIM automatically - existing keys may cause conflicts`);
+            steps.push(
+                `⚠️  Found ${dkimRecords.length} existing DKIM record(s) - these may belong to another email provider`,
+            );
+            steps.push(
+                `   DKIM names: ${dkimRecords.map((r) => r.name).join(', ')}`,
+            );
+            steps.push(
+                `   Cloudflare Email Routing handles DKIM automatically - existing keys may cause conflicts`,
+            );
         }
 
         // Step 5: Create Email Routing rule (catch-all → Worker)
         const existingRules = await this.getRoutingRules(zoneId);
         const hasWorkerRule = existingRules.some(
-            (r) => r.actions?.[0]?.type === 'worker' && r.actions?.[0]?.value?.includes(workerName),
+            (r) =>
+                r.actions?.[0]?.type === 'worker' &&
+                r.actions?.[0]?.value?.includes(workerName),
         );
 
         if (!hasWorkerRule) {
             const rule = await this.createRoutingRule(zoneId, { workerName });
 
             if (rule) {
-                steps.push(`Email Routing rule created: catch-all → ${workerName}`);
+                steps.push(
+                    `Email Routing rule created: catch-all → ${workerName}`,
+                );
             } else {
                 errors.push('Failed to create Email Routing rule');
             }
@@ -594,7 +677,10 @@ export class CloudflareZonesService {
             zoneId,
             errors,
             steps,
-            mxRecords: mxRecords.map((m) => ({ name: m.name, content: m.content })),
+            mxRecords: mxRecords.map((m) => ({
+                name: m.name,
+                content: m.content,
+            })),
         };
     }
 
@@ -602,7 +688,10 @@ export class CloudflareZonesService {
      * Verify DNS TXT record exists for domain verification
      * Uses Node.js dns module for actual DNS lookup
      */
-    async verifyDnsTxt(domain: string, expectedValue: string): Promise<boolean> {
+    async verifyDnsTxt(
+        domain: string,
+        expectedValue: string,
+    ): Promise<boolean> {
         try {
             const dns = await import('dns').then((m) => m.promises);
             const records = await dns.resolveTxt(domain);
@@ -611,7 +700,9 @@ export class CloudflareZonesService {
                 record.some((entry) => entry === expectedValue),
             );
         } catch (error: any) {
-            this.logger.warn(`DNS TXT check failed for ${domain}: ${error.message}`);
+            this.logger.warn(
+                `DNS TXT check failed for ${domain}: ${error.message}`,
+            );
             return false;
         }
     }
@@ -657,8 +748,8 @@ export class CloudflareZonesService {
 
         // Delete routing rules created by AgentMail
         const existingRules = await this.getRoutingRules(zoneId);
-        const agentMailRules = existingRules.filter(
-            (r) => r.name?.includes('AgentMail'),
+        const agentMailRules = existingRules.filter((r) =>
+            r.name?.includes('AgentMail'),
         );
 
         for (const rule of agentMailRules) {

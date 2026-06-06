@@ -2,11 +2,11 @@
  * Subscription Plans Configuration
  * Email-focused plans matching AgentMail.to competitor
  * Plans: FREE | STANDARD | TEAM | PRO | ULTIMATE
- * 
+ *
  * Competitor benchmark (AgentMail.to):
  * - Free: 3 inboxes, 3,000 emails/month
  * - Developer: $20, 10 inboxes, 10,000 emails/month
- * 
+ *
  * Our plans (more generous free tier, lower prices):
  * - Free: 5 inboxes, 5,000 emails/month
  * - Standard: $9, 15 inboxes, 15,000 emails/month
@@ -19,17 +19,17 @@ export interface SubscriptionPlanConfig {
     name: string;
     monthlyPrice: number;
     yearlyPrice: number;
-    maxInboxes: number;      // -1 = unlimited
-    emailsPerMonth: number;  // -1 = unlimited
-    emailsPerHour: number;   // per-inbox rate limit
-    emailsPerDay: number;    // per-inbox rate limit
-    maxWebhooks: number;     // -1 = unlimited
+    maxInboxes: number; // -1 = unlimited
+    emailsPerMonth: number; // -1 = unlimited
+    emailsPerHour: number; // per-inbox rate limit
+    emailsPerDay: number; // per-inbox rate limit
+    maxWebhooks: number; // -1 = unlimited
     maxAttachmentsPerEmail: number;
     maxAttachmentSizeMB: number;
-    storageGB: number;       // -1 = unlimited
+    storageGB: number; // -1 = unlimited
     apiCallsPerMinute: number;
     semanticSearch: boolean;
-    customDomains: number;   // -1 = unlimited
+    customDomains: number; // -1 = unlimited
     description: string;
     features: string[];
 }

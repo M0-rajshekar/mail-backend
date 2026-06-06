@@ -404,29 +404,23 @@ async function testMissingFeatures() {
   // Check schema for missing features
   const missingFeatures = [];
   
-  // Star/favorite
-  missingFeatures.push({
-    feature: 'Star/Favorite emails',
-    status: 'NOT IMPLEMENTED',
-    impact: 'Medium',
-    note: 'EmailMessage schema has no "starred" field'
-  });
+  // Star/favorite - NOW IMPLEMENTED
+  console.log('   ✅ Star/Favorite emails: IMPLEMENTED');
+  console.log('      - Backend: toggleStar() in email.service.ts');
+  console.log('      - Frontend: Star button in inbox detail page');
+  console.log('      - Database: starred BOOLEAN field');
   
-  // Trash folder
-  missingFeatures.push({
-    feature: 'Trash/Archive folders',
-    status: 'NOT IMPLEMENTED',
-    impact: 'Medium',
-    note: 'Only status=SENT/RECEIVED/FAILED/DRAFT, no trash/archive status'
-  });
+  // Trash folder - NOW IMPLEMENTED
+  console.log('   ✅ Trash/Archive folders: IMPLEMENTED');
+  console.log('      - Backend: moveToTrash(), restoreFromTrash()');
+  console.log('      - Frontend: Trash folder + restore button');
+  console.log('      - Database: TRASH status in EmailStatus enum');
   
-  // Read/unread
-  missingFeatures.push({
-    feature: 'Read/Unread status',
-    status: 'NOT IMPLEMENTED',
-    impact: 'High',
-    note: 'No "isRead" field on EmailMessage'
-  });
+  // Read/unread - NOW IMPLEMENTED
+  console.log('   ✅ Read/Unread status: IMPLEMENTED');
+  console.log('      - Backend: markAsRead(), isRead field');
+  console.log('      - Frontend: Unread indicators + auto-mark-as-read');
+  console.log('      - Database: isRead BOOLEAN field');
   
   // Labels/tags
   missingFeatures.push({
@@ -592,7 +586,7 @@ async function main() {
   }
   
   console.log('\n📋 RECOMMENDATIONS:');
-  console.log('1. Add starred/read/trash fields to EmailMessage schema');
+  console.log('1. ✅ Star/Trash/Read features are now implemented');
   console.log('2. Implement proper draft management');
   console.log('3. Add email thread view in frontend');
   console.log('4. Test with second user for multi-tenancy validation');

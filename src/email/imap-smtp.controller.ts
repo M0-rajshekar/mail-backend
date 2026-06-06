@@ -89,12 +89,13 @@ export class ImapSmtpController {
             return { messages: [], total: 0 };
         }
 
-        const { emails: messages, totalCount } = await this.emailService.getMessages(
-            userId,
-            targetInbox.id,
-            +limit,
-            0,
-        );
+        const { emails: messages, totalCount } =
+            await this.emailService.getMessages(
+                userId,
+                targetInbox.id,
+                +limit,
+                0,
+            );
 
         return {
             folder: targetInbox.emailAddress,

@@ -1,13 +1,13 @@
 /**
  * Email Subscription Plans Configuration
  * Based on competitor analysis (AgentMail.to)
- * 
+ *
  * Competitor Pricing:
  * - Free: $0, 3 inboxes, 3,000 emails/month
  * - Developer: $20, 10 inboxes, 10,000 emails/month
  * - Startup: Custom, 150 inboxes, 150,000 emails/month
  * - Enterprise: Custom, unlimited
- * 
+ *
  * Our Pricing (more generous free tier):
  * - Free: $0, 5 inboxes, 5,000 emails/month, 2 webhooks
  * - Developer: $15, 15 inboxes, 15,000 emails/month, 10 webhooks
@@ -22,18 +22,18 @@ export interface EmailPlanConfig {
     monthlyPrice: number;
     yearlyPrice: number;
     limits: {
-        inboxes: number;        // -1 = unlimited
-        emailsPerMonth: number;  // -1 = unlimited
-        emailsPerHour: number;   // Per-inbox rate limit
-        emailsPerDay: number;    // Per-inbox rate limit
-        webhooks: number;        // -1 = unlimited
+        inboxes: number; // -1 = unlimited
+        emailsPerMonth: number; // -1 = unlimited
+        emailsPerHour: number; // Per-inbox rate limit
+        emailsPerDay: number; // Per-inbox rate limit
+        webhooks: number; // -1 = unlimited
         attachmentsPerEmail: number;
         maxAttachmentSize: number; // MB
-        storageGB: number;       // -1 = unlimited
+        storageGB: number; // -1 = unlimited
         apiCallsPerMinute: number;
         semanticSearch: boolean;
-        customDomains: number;   // -1 = unlimited
-        teamMembers: number;     // -1 = unlimited
+        customDomains: number; // -1 = unlimited
+        teamMembers: number; // -1 = unlimited
     };
     features: string[];
     isPopular?: boolean;
@@ -206,25 +206,39 @@ export function getEffectiveLimit(value: number): number {
 /**
  * Check if user can create more inboxes
  */
-export function canCreateInbox(planId: string, currentInboxes: number): boolean {
+export function canCreateInbox(
+    planId: string,
+    currentInboxes: number,
+): boolean {
     const plan = getEmailPlanConfig(planId);
     if (!plan) return false;
-    return isUnlimited(plan.limits.inboxes) || currentInboxes < plan.limits.inboxes;
+    return (
+        isUnlimited(plan.limits.inboxes) || currentInboxes < plan.limits.inboxes
+    );
 }
 
 /**
  * Check if user can create more webhooks
  */
-export function canCreateWebhook(planId: string, currentWebhooks: number): boolean {
+export function canCreateWebhook(
+    planId: string,
+    currentWebhooks: number,
+): boolean {
     const plan = getEmailPlanConfig(planId);
     if (!plan) return false;
-    return isUnlimited(plan.limits.webhooks) || currentWebhooks < plan.limits.webhooks;
+    return (
+        isUnlimited(plan.limits.webhooks) ||
+        currentWebhooks < plan.limits.webhooks
+    );
 }
 
 /**
  * Get rate limits for a plan
  */
-export function getRateLimits(planId: string): { perHour: number; perDay: number } {
+export function getRateLimits(planId: string): {
+    perHour: number;
+    perDay: number;
+} {
     const plan = getEmailPlanConfig(planId);
     if (!plan) return { perHour: 20, perDay: 100 };
     return {
@@ -246,7 +260,10 @@ export function hasSemanticSearch(planId: string): boolean {
  */
 export function allowsCustomDomains(planId: string): boolean {
     const plan = getEmailPlanConfig(planId);
-    return plan ? !isUnlimited(plan.limits.customDomains) || plan.limits.customDomains > 0 : false;
+    return plan
+        ? !isUnlimited(plan.limits.customDomains) ||
+              plan.limits.customDomains > 0
+        : false;
 }
 
 /**
@@ -255,5 +272,7 @@ export function allowsCustomDomains(planId: string): boolean {
 export function getTeamMemberLimit(planId: string): number {
     const plan = getEmailPlanConfig(planId);
     if (!plan) return 1;
-    return isUnlimited(plan.limits.teamMembers) ? Infinity : plan.limits.teamMembers;
+    return isUnlimited(plan.limits.teamMembers)
+        ? Infinity
+        : plan.limits.teamMembers;
 }

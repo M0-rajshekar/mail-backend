@@ -1,7 +1,7 @@
 /**
  * Custom Domain Service
  * Handles domain registration, verification, DNS management, and Cloudflare integration
- * 
+ *
  * Multi-tenant isolation: Each domain is strictly tied to one user.
  * Edge cases handled:
  *   - Case-insensitive domain names
@@ -51,15 +51,15 @@ export class CustomDomainService {
      */
     private mapPlanToConfig(planId: string): string {
         const mapping: Record<string, string> = {
-            'FREE': 'FREE',
-            'STARTER': 'STANDARD',
-            'PRO': 'PRO',
-            'ENTERPRISE': 'ULTIMATE',
-            'STANDARD': 'STANDARD',
-            'TEAM': 'TEAM',
-            'ULTIMATE': 'ULTIMATE',
-            'DEVELOPER': 'STANDARD',
-            'STARTUP': 'TEAM',
+            FREE: 'FREE',
+            STARTER: 'STANDARD',
+            PRO: 'PRO',
+            ENTERPRISE: 'ULTIMATE',
+            STANDARD: 'STANDARD',
+            TEAM: 'TEAM',
+            ULTIMATE: 'ULTIMATE',
+            DEVELOPER: 'STANDARD',
+            STARTUP: 'TEAM',
         };
         return mapping[planId] || planId;
     }
@@ -75,7 +75,9 @@ export class CustomDomainService {
         const mappedPlan = this.mapPlanToConfig(planId);
         const plan = SUBSCRIPTION_PLANS[mappedPlan];
         if (!plan) {
-            this.logger.warn(`Unknown plan "${planId}" (mapped: "${mappedPlan}"), defaulting to 0 domains`);
+            this.logger.warn(
+                `Unknown plan "${planId}" (mapped: "${mappedPlan}"), defaulting to 0 domains`,
+            );
             return { canAdd: false, maxDomains: 0 };
         }
 
@@ -91,7 +93,7 @@ export class CustomDomainService {
 
     /**
      * Register a new custom domain
-     * 
+     *
      * Validates:
      *   - Domain format (RFC-compliant)
      *   - Domain not already registered (case-insensitive)
@@ -106,19 +108,21 @@ export class CustomDomainService {
         // Validate domain format
         if (!this.isValidDomain(normalizedDomain)) {
             throw new BadRequestException(
-                'Invalid domain format. Use format: example.com (no www, no paths, no ports)'
+                'Invalid domain format. Use format: example.com (no www, no paths, no ports)',
             );
         }
 
         // Prevent IP addresses
         if (this.isIPAddress(normalizedDomain)) {
-            throw new BadRequestException('IP addresses cannot be used as email domains');
+            throw new BadRequestException(
+                'IP addresses cannot be used as email domains',
+            );
         }
 
         // Prevent registering system/reserved domains
         if (this.isSystemDomain(normalizedDomain)) {
             throw new BadRequestException(
-                `"${normalizedDomain}" is a reserved system domain and cannot be registered as a custom domain.`
+                `"${normalizedDomain}" is a reserved system domain and cannot be registered as a custom domain.`,
             );
         }
 
@@ -128,14 +132,20 @@ export class CustomDomainService {
         //   2. Subdomain of existing (mail.example.com when example.com exists)
         //   3. Parent of existing (example.com when mail.example.com exists)
         const existingExact = await this.prisma.customDomain.findFirst({
-            where: { domain: { equals: normalizedDomain, mode: 'insensitive' } },
+            where: {
+                domain: { equals: normalizedDomain, mode: 'insensitive' },
+            },
         });
 
         if (existingExact) {
             if (existingExact.userId === userId) {
-                throw new BadRequestException('You have already registered this domain');
+                throw new BadRequestException(
+                    'You have already registered this domain',
+                );
             } else {
-                throw new ForbiddenException('This domain is already registered by another user');
+                throw new ForbiddenException(
+                    'This domain is already registered by another user',
+                );
             }
         }
 
@@ -145,16 +155,18 @@ export class CustomDomainService {
         for (let i = 1; i < domainParts.length; i++) {
             const parentDomain = domainParts.slice(i).join('.');
             const parentExists = await this.prisma.customDomain.findFirst({
-                where: { domain: { equals: parentDomain, mode: 'insensitive' } },
+                where: {
+                    domain: { equals: parentDomain, mode: 'insensitive' },
+                },
             });
             if (parentExists) {
                 if (parentExists.userId === userId) {
                     throw new BadRequestException(
-                        `Cannot register "${normalizedDomain}" because you already own the parent domain "${parentDomain}". Use a subdomain of your existing domain instead.`
+                        `Cannot register "${normalizedDomain}" because you already own the parent domain "${parentDomain}". Use a subdomain of your existing domain instead.`,
                     );
                 } else {
                     throw new ForbiddenException(
-                        `Cannot register "${normalizedDomain}" because parent domain "${parentDomain}" is registered by another user.`
+                        `Cannot register "${normalizedDomain}" because parent domain "${parentDomain}" is registered by another user.`,
                     );
                 }
             }
@@ -163,17 +175,22 @@ export class CustomDomainService {
         // Check if any existing domain is a subdomain of the new domain
         // e.g., if "mail.example.com" exists, block "example.com"
         const existingSubdomain = await this.prisma.customDomain.findFirst({
-            where: { domain: { endsWith: `.${normalizedDomain}`, mode: 'insensitive' } },
+            where: {
+                domain: {
+                    endsWith: `.${normalizedDomain}`,
+                    mode: 'insensitive',
+                },
+            },
         });
 
         if (existingSubdomain) {
             if (existingSubdomain.userId === userId) {
                 throw new BadRequestException(
-                    `Cannot register "${normalizedDomain}" because you already registered subdomain "${existingSubdomain.domain}". Delete the subdomain first.`
+                    `Cannot register "${normalizedDomain}" because you already registered subdomain "${existingSubdomain.domain}". Delete the subdomain first.`,
                 );
             } else {
                 throw new ForbiddenException(
-                    `Cannot register "${normalizedDomain}" because subdomain "${existingSubdomain.domain}" is registered by another user.`
+                    `Cannot register "${normalizedDomain}" because subdomain "${existingSubdomain.domain}" is registered by another user.`,
                 );
             }
         }
@@ -181,7 +198,10 @@ export class CustomDomainService {
         // Check plan limits
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            include: { CustomDomains: true, Subscription: { orderBy: { createdAt: 'desc' }, take: 1 } },
+            include: {
+                CustomDomains: true,
+                Subscription: { orderBy: { createdAt: 'desc' }, take: 1 },
+            },
         });
 
         if (!user) {
@@ -198,7 +218,7 @@ export class CustomDomainService {
 
         if (!canAdd) {
             throw new ForbiddenException(
-                `Domain limit reached. Maximum ${maxDomains} custom domains allowed on your plan. Upgrade to add more.`
+                `Domain limit reached. Maximum ${maxDomains} custom domains allowed on your plan. Upgrade to add more.`,
             );
         }
 
@@ -211,28 +231,37 @@ export class CustomDomainService {
 
         try {
             // Try to get existing zone first
-            let zoneResult = await this.cloudflareZones.getZoneDetails(normalizedDomain);
-            
+            let zoneResult =
+                await this.cloudflareZones.getZoneDetails(normalizedDomain);
+
             // If no zone exists, create one
             if (!zoneResult) {
-                this.logger.log(`Creating Cloudflare zone for ${normalizedDomain}`);
-                zoneResult = await this.cloudflareZones.createZone(normalizedDomain);
+                this.logger.log(
+                    `Creating Cloudflare zone for ${normalizedDomain}`,
+                );
+                zoneResult =
+                    await this.cloudflareZones.createZone(normalizedDomain);
             }
-            
+
             if (zoneResult?.nameservers && zoneResult.nameservers.length > 0) {
                 nameservers = zoneResult.nameservers;
                 this.logger.log(
                     `Cloudflare nameservers for ${normalizedDomain}: ${nameservers.join(', ')}`,
                 );
             } else {
-                zoneMessage = 'Cloudflare zone created but no nameservers returned. Your API token may be missing Zone:Read permission. Go to Cloudflare dashboard → My Profile → API Tokens → Edit token → Add: Zone Read and Zone Edit permissions.';
+                zoneMessage =
+                    'Cloudflare zone created but no nameservers returned. Your API token may be missing Zone:Read permission. Go to Cloudflare dashboard → My Profile → API Tokens → Edit token → Add: Zone Read and Zone Edit permissions.';
             }
         } catch (e: any) {
-            this.logger.error(`Zone API failed for ${normalizedDomain}: ${e.message}`);
+            this.logger.error(
+                `Zone API failed for ${normalizedDomain}: ${e.message}`,
+            );
             if (e.message?.includes('zone.create')) {
-                zoneMessage = 'Missing Zone:Edit permission. Your Cloudflare API token needs Zone Read and Zone Edit permissions. Go to Cloudflare dashboard → My Profile → API Tokens → Edit your token → Under Permissions add: Zone Read, Zone Edit → Under Zone Resources select: All zones from an account → Save and update CLOUDFLARE_API_TOKEN in your backend/.env file.';
+                zoneMessage =
+                    'Missing Zone:Edit permission. Your Cloudflare API token needs Zone Read and Zone Edit permissions. Go to Cloudflare dashboard → My Profile → API Tokens → Edit your token → Under Permissions add: Zone Read, Zone Edit → Under Zone Resources select: All zones from an account → Save and update CLOUDFLARE_API_TOKEN in your backend/.env file.';
             } else {
-                zoneMessage = 'Failed to setup Cloudflare zone. Please check your Cloudflare API token and account ID.';
+                zoneMessage =
+                    'Failed to setup Cloudflare zone. Please check your Cloudflare API token and account ID.';
             }
         }
 
@@ -253,9 +282,14 @@ export class CustomDomainService {
             },
         });
 
-        this.logger.log(`Domain registered: ${normalizedDomain} for user ${userId}`);
+        this.logger.log(
+            `Domain registered: ${normalizedDomain} for user ${userId}`,
+        );
 
-        const dnsRecords = this.generateDnsRecords(normalizedDomain, verificationTxt);
+        const dnsRecords = this.generateDnsRecords(
+            normalizedDomain,
+            verificationTxt,
+        );
 
         return {
             id: customDomain.id,
@@ -265,9 +299,11 @@ export class CustomDomainService {
             verificationTxt: customDomain.verificationTxt,
             nameservers,
             dnsRecords,
-            message: nameservers.length > 0
-                ? 'Domain added. Point your nameservers to the ones shown below. We will auto-configure DNS once the nameserver change propagates.'
-                : zoneMessage || 'Could not retrieve Cloudflare nameservers. Please ensure your domain is added to your Cloudflare account first.',
+            message:
+                nameservers.length > 0
+                    ? 'Domain added. Point your nameservers to the ones shown below. We will auto-configure DNS once the nameserver change propagates.'
+                    : zoneMessage ||
+                      'Could not retrieve Cloudflare nameservers. Please ensure your domain is added to your Cloudflare account first.',
         };
     }
 
@@ -290,8 +326,14 @@ export class CustomDomainService {
             domains.map(async (domain) => {
                 if (!domain.nameservers || domain.nameservers.length === 0) {
                     try {
-                        const zoneResult = await this.cloudflareZones.getZoneDetails(domain.domain);
-                        if (zoneResult?.nameservers && zoneResult.nameservers.length > 0) {
+                        const zoneResult =
+                            await this.cloudflareZones.getZoneDetails(
+                                domain.domain,
+                            );
+                        if (
+                            zoneResult?.nameservers &&
+                            zoneResult.nameservers.length > 0
+                        ) {
                             // Update database with nameservers
                             await this.prisma.customDomain.update({
                                 where: { id: domain.id },
@@ -300,7 +342,9 @@ export class CustomDomainService {
                             domain.nameservers = zoneResult.nameservers;
                         }
                     } catch (e: any) {
-                        this.logger.debug(`Could not fetch nameservers for ${domain.domain}: ${e.message}`);
+                        this.logger.debug(
+                            `Could not fetch nameservers for ${domain.domain}: ${e.message}`,
+                        );
                     }
                 }
                 return domain;
@@ -340,7 +384,9 @@ export class CustomDomainService {
         });
 
         if (!domain) {
-            throw new NotFoundException('Domain not found or does not belong to you');
+            throw new NotFoundException(
+                'Domain not found or does not belong to you',
+            );
         }
 
         return {
@@ -353,13 +399,16 @@ export class CustomDomainService {
             createdAt: domain.createdAt,
             updatedAt: domain.updatedAt,
             inboxes: domain.inboxes,
-            dnsRecords: this.generateDnsRecords(domain.domain, domain.verificationTxt),
+            dnsRecords: this.generateDnsRecords(
+                domain.domain,
+                domain.verificationTxt,
+            ),
         };
     }
 
     /**
      * Verify domain ownership via DNS TXT record
-     * 
+     *
      * Step 1: Check if DNS TXT record exists (actual DNS lookup)
      * Step 2: Check if MX records point to Cloudflare
      * Step 3: If verified, auto-onboard Cloudflare email routing
@@ -370,7 +419,9 @@ export class CustomDomainService {
         });
 
         if (!domain) {
-            throw new NotFoundException('Domain not found or does not belong to you');
+            throw new NotFoundException(
+                'Domain not found or does not belong to you',
+            );
         }
 
         if (domain.verified) {
@@ -384,28 +435,37 @@ export class CustomDomainService {
 
         // Step 1: Verify nameservers are actually pointing to Cloudflare
         const expectedNameservers = domain.nameservers || [];
-        const currentNameservers = await this.getCurrentNameservers(domain.domain);
-        const nameserversMatch = expectedNameservers.length > 0 && 
-            expectedNameservers.every(ns => currentNameservers.includes(ns.toLowerCase()));
+        const currentNameservers = await this.getCurrentNameservers(
+            domain.domain,
+        );
+        const nameserversMatch =
+            expectedNameservers.length > 0 &&
+            expectedNameservers.every((ns) =>
+                currentNameservers.includes(ns.toLowerCase()),
+            );
 
         if (!nameserversMatch) {
-            const currentNsStr = currentNameservers.length > 0 
-                ? currentNameservers.join(', ') 
-                : 'not yet detected';
-            
+            const currentNsStr =
+                currentNameservers.length > 0
+                    ? currentNameservers.join(', ')
+                    : 'not yet detected';
+
             return {
                 verified: false,
                 message: `Waiting for your registrar to propagate your new nameservers. We are verifying that your domain is pointing to Cloudflare. This typically takes 1-2 hours but may take up to 24 hours, depending on your registrar.`,
                 currentNameservers: currentNameservers,
                 expectedNameservers: expectedNameservers,
                 verificationTxt: domain.verificationTxt,
-                dnsRecords: this.generateDnsRecords(domain.domain, domain.verificationTxt),
+                dnsRecords: this.generateDnsRecords(
+                    domain.domain,
+                    domain.verificationTxt,
+                ),
                 nameservers: domain.nameservers,
                 steps: [
                     `Current nameservers: ${currentNsStr}`,
                     `Expected nameservers: ${expectedNameservers.join(', ')}`,
                     'Waiting for nameserver propagation at registrar...',
-                    'This typically takes 1-2 hours but may take up to 24 hours'
+                    'This typically takes 1-2 hours but may take up to 24 hours',
                 ],
             };
         }
@@ -414,8 +474,13 @@ export class CustomDomainService {
         // Step 2: Auto-provision DNS if zone exists
         if (!zoneId) {
             // No zone found — check DNS records manually for domains added outside Cloudflare
-            const txtVerified = await this.cloudflareZones.verifyDnsTxt(domain.domain, domain.verificationTxt);
-            const mxCheck = await this.cloudflareZones.verifyMxRecords(domain.domain);
+            const txtVerified = await this.cloudflareZones.verifyDnsTxt(
+                domain.domain,
+                domain.verificationTxt,
+            );
+            const mxCheck = await this.cloudflareZones.verifyMxRecords(
+                domain.domain,
+            );
             const spfCheck = await this.verifySpfRecord(domain.domain);
 
             if (txtVerified && mxCheck.valid && spfCheck) {
@@ -423,14 +488,19 @@ export class CustomDomainService {
             } else {
                 const missing: string[] = [];
                 if (!txtVerified) missing.push('TXT verification record');
-                if (!mxCheck.valid) missing.push('MX records (route1/2/3.mx.cloudflare.net)');
-                if (!spfCheck) missing.push('SPF record (_spf.mx.cloudflare.net)');
-                
+                if (!mxCheck.valid)
+                    missing.push('MX records (route1/2/3.mx.cloudflare.net)');
+                if (!spfCheck)
+                    missing.push('SPF record (_spf.mx.cloudflare.net)');
+
                 return {
                     verified: false,
                     message: `Missing DNS records: ${missing.join(', ')}. Add the TXT record below at your DNS provider.`,
                     verificationTxt: domain.verificationTxt,
-                    dnsRecords: this.generateDnsRecords(domain.domain, domain.verificationTxt),
+                    dnsRecords: this.generateDnsRecords(
+                        domain.domain,
+                        domain.verificationTxt,
+                    ),
                     nameservers: domain.nameservers,
                     steps,
                 };
@@ -438,11 +508,12 @@ export class CustomDomainService {
         } else {
             // Zone exists — auto-provision DNS records
             steps.push('Cloudflare zone found');
-            
+
             // Auto-add all DNS records
             await this.cloudflareZones.onboardDomainForEmail(
                 domain.domain,
-                this.configService.get('CLOUDFLARE_WORKER_NAME') || 'calm-scene-39ae',
+                this.configService.get('CLOUDFLARE_WORKER_NAME') ||
+                    'calm-scene-39ae',
             );
             steps.push('DNS records auto-provisioned via Cloudflare API');
             steps.push('Email Routing enabled');
@@ -462,14 +533,15 @@ export class CustomDomainService {
 
         return {
             verified: true,
-            message: 'Domain verified and email routing configured. You can now create inboxes using this domain.',
+            message:
+                'Domain verified and email routing configured. You can now create inboxes using this domain.',
             steps,
         };
     }
 
     /**
      * Delete a custom domain and all associated inboxes
-     * 
+     *
      * Cascading delete: removes all inboxes using this domain to prevent orphaned emails.
      * Optimized with bulk deletes instead of N+1 queries.
      */
@@ -479,7 +551,9 @@ export class CustomDomainService {
         });
 
         if (!domain) {
-            throw new NotFoundException('Domain not found or does not belong to you');
+            throw new NotFoundException(
+                'Domain not found or does not belong to you',
+            );
         }
 
         // Count inboxes before deletion (for response message)
@@ -518,7 +592,7 @@ export class CustomDomainService {
         });
 
         this.logger.log(
-            `Domain deleted: ${domain.domain} for user ${userId} (${inboxCount} inboxes, ${messageCount} messages removed)`
+            `Domain deleted: ${domain.domain} for user ${userId} (${inboxCount} inboxes, ${messageCount} messages removed)`,
         );
 
         return {
@@ -537,7 +611,9 @@ export class CustomDomainService {
         });
 
         if (!domain) {
-            throw new NotFoundException('Domain not found or does not belong to you');
+            throw new NotFoundException(
+                'Domain not found or does not belong to you',
+            );
         }
 
         return this.generateDnsRecords(domain.domain, domain.verificationTxt);
@@ -551,9 +627,11 @@ export class CustomDomainService {
         try {
             const dns = await import('dns').then((m) => m.promises);
             const nsRecords = await dns.resolveNs(domain);
-            return nsRecords.map(ns => ns.toLowerCase());
+            return nsRecords.map((ns) => ns.toLowerCase());
         } catch (error: any) {
-            this.logger.debug(`Could not resolve NS for ${domain}: ${error.message}`);
+            this.logger.debug(
+                `Could not resolve NS for ${domain}: ${error.message}`,
+            );
             return [];
         }
     }
@@ -587,7 +665,10 @@ export class CustomDomainService {
     /**
      * Check if an email address uses a verified custom domain belonging to the user
      */
-    async isCustomDomainEmail(userId: string, emailAddress: string): Promise<boolean> {
+    async isCustomDomainEmail(
+        userId: string,
+        emailAddress: string,
+    ): Promise<boolean> {
         const domain = this.extractDomain(emailAddress);
         if (!domain) return false;
 
@@ -606,7 +687,10 @@ export class CustomDomainService {
     /**
      * Get the custom domain ID for an email address (if it belongs to user)
      */
-    async getDomainIdForEmail(userId: string, emailAddress: string): Promise<string | null> {
+    async getDomainIdForEmail(
+        userId: string,
+        emailAddress: string,
+    ): Promise<string | null> {
         const domain = this.extractDomain(emailAddress);
         if (!domain) return null;
 
@@ -624,12 +708,15 @@ export class CustomDomainService {
 
     /**
      * Validate that a FROM address is allowed for a user
-     * 
+     *
      * Rules:
      *   - If using a custom domain, it must be verified and belong to the user
      *   - If using the default domain (e.g., @trueprop.xyz), it's always allowed
      */
-    async validateFromAddress(userId: string, fromAddress: string): Promise<{ valid: boolean; error?: string }> {
+    async validateFromAddress(
+        userId: string,
+        fromAddress: string,
+    ): Promise<{ valid: boolean; error?: string }> {
         const domain = this.extractDomain(fromAddress);
         if (!domain) {
             return { valid: false, error: 'Invalid email address format' };
@@ -642,8 +729,13 @@ export class CustomDomainService {
         }
 
         // Check if it's the default system domain
-        const defaultDomain = this.configService.get<string>('DEFAULT_EMAIL_DOMAIN');
-        if (defaultDomain && domain.toLowerCase() === defaultDomain.toLowerCase()) {
+        const defaultDomain = this.configService.get<string>(
+            'DEFAULT_EMAIL_DOMAIN',
+        );
+        if (
+            defaultDomain &&
+            domain.toLowerCase() === defaultDomain.toLowerCase()
+        ) {
             return { valid: true };
         }
 
@@ -656,7 +748,7 @@ export class CustomDomainService {
 
     /**
      * Create an inbox on a custom domain
-     * 
+     *
      * Validates:
      *   - Domain is verified and belongs to user
      *   - Email address is unique (case-insensitive)
@@ -671,7 +763,7 @@ export class CustomDomainService {
         // Validate local part
         if (!this.isValidLocalPart(localPart)) {
             throw new BadRequestException(
-                'Invalid email local part. Use only letters, numbers, dots, hyphens, and underscores.'
+                'Invalid email local part. Use only letters, numbers, dots, hyphens, and underscores.',
             );
         }
 
@@ -681,12 +773,14 @@ export class CustomDomainService {
         });
 
         if (!domain) {
-            throw new NotFoundException('Domain not found or does not belong to you');
+            throw new NotFoundException(
+                'Domain not found or does not belong to you',
+            );
         }
 
         if (!domain.verified || domain.status !== DomainStatus.ACTIVE) {
             throw new ForbiddenException(
-                'Domain must be verified before creating inboxes. Complete DNS verification first.'
+                'Domain must be verified before creating inboxes. Complete DNS verification first.',
             );
         }
 
@@ -699,7 +793,7 @@ export class CustomDomainService {
 
         if (existing) {
             throw new BadRequestException(
-                `Email address "${emailAddress}" is already in use. Choose a different local part.`
+                `Email address "${emailAddress}" is already in use. Choose a different local part.`,
             );
         }
 
@@ -714,7 +808,9 @@ export class CustomDomainService {
             },
         });
 
-        this.logger.log(`Inbox created: ${emailAddress} on custom domain ${domain.domain}`);
+        this.logger.log(
+            `Inbox created: ${emailAddress} on custom domain ${domain.domain}`,
+        );
 
         return inbox;
     }
@@ -726,9 +822,13 @@ export class CustomDomainService {
         try {
             const dns = await import('dns').then((m) => m.promises);
             const records = await dns.resolveTxt(domain);
-            
+
             return records.some((record) =>
-                record.some((entry) => entry.includes('v=spf1') && entry.includes('_spf.mx.cloudflare.net')),
+                record.some(
+                    (entry) =>
+                        entry.includes('v=spf1') &&
+                        entry.includes('_spf.mx.cloudflare.net'),
+                ),
             );
         } catch {
             return false;
@@ -737,12 +837,17 @@ export class CustomDomainService {
 
     /**
      * Check DNS TXT record for verification
-     * 
+     *
      * TODO: Implement actual DNS lookup using dns.promises or a library like `dns-packet`
      * For now returns false (manual verification required)
      */
-    private async checkDnsVerification(domain: string, expectedTxt: string): Promise<boolean> {
-        this.logger.log(`Checking DNS TXT for ${domain}, expecting: ${expectedTxt}`);
+    private async checkDnsVerification(
+        domain: string,
+        expectedTxt: string,
+    ): Promise<boolean> {
+        this.logger.log(
+            `Checking DNS TXT for ${domain}, expecting: ${expectedTxt}`,
+        );
         // Production: use Node.js dns.resolveTxt or external API
         return false;
     }
@@ -771,18 +876,23 @@ export class CustomDomainService {
     private isValidDomain(domain: string): boolean {
         // Must contain at least one dot, no spaces, no paths, no protocols
         if (!domain || domain.length < 4 || domain.length > 253) return false;
-        if (domain.includes(' ') || domain.includes('/') || domain.includes(':')) return false;
+        if (
+            domain.includes(' ') ||
+            domain.includes('/') ||
+            domain.includes(':')
+        )
+            return false;
         if (!domain.includes('.')) return false;
-        
+
         // Check each label
         const labels = domain.split('.');
         if (labels.length < 2) return false;
-        
+
         for (const label of labels) {
             if (!label || label.length > 63) return false;
             if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i.test(label)) return false;
         }
-        
+
         return true;
     }
 
@@ -790,10 +900,13 @@ export class CustomDomainService {
      * Validate local part of email (before @)
      */
     private isValidLocalPart(localPart: string): boolean {
-        if (!localPart || localPart.length < 1 || localPart.length > 64) return false;
+        if (!localPart || localPart.length < 1 || localPart.length > 64)
+            return false;
         // Allow letters, numbers, dots, hyphens, underscores
-        return /^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$/.test(localPart) &&
-               !localPart.includes('..');
+        return (
+            /^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$/.test(localPart) &&
+            !localPart.includes('..')
+        );
     }
 
     /**
@@ -810,41 +923,53 @@ export class CustomDomainService {
      * These domains are used internally and cannot be registered as custom domains
      */
     private isSystemDomain(domain: string): boolean {
-        const defaultDomain = this.configService.get<string>('DEFAULT_EMAIL_DOMAIN');
-        if (defaultDomain && domain.toLowerCase() === defaultDomain.toLowerCase()) {
+        const defaultDomain = this.configService.get<string>(
+            'DEFAULT_EMAIL_DOMAIN',
+        );
+        if (
+            defaultDomain &&
+            domain.toLowerCase() === defaultDomain.toLowerCase()
+        ) {
             return true;
         }
-        
+
         // Additional reserved domains
         const reservedDomains = [
             'agentmail.io',
             'agentmail.com',
             'agentmail.to',
         ];
-        
+
         return reservedDomains.some(
-            (reserved) => domain.toLowerCase() === reserved.toLowerCase()
+            (reserved) => domain.toLowerCase() === reserved.toLowerCase(),
         );
     }
 
     /**
      * Generate DNS records needed for email routing
      */
-    private generateDnsRecords(domain: string, verificationTxt: string): DnsRecords {
+    private generateDnsRecords(
+        domain: string,
+        verificationTxt: string,
+    ): DnsRecords {
         return {
             mx: [
                 { host: '@', value: 'route1.mx.cloudflare.net', priority: 10 },
                 { host: '@', value: 'route2.mx.cloudflare.net', priority: 20 },
                 { host: '@', value: 'route3.mx.cloudflare.net', priority: 30 },
             ],
-            txt: [
-                { host: '@', value: verificationTxt },
-            ],
+            txt: [{ host: '@', value: verificationTxt }],
             spf: [
-                { host: '@', value: 'v=spf1 include:_spf.mx.cloudflare.net ~all' },
+                {
+                    host: '@',
+                    value: 'v=spf1 include:_spf.mx.cloudflare.net ~all',
+                },
             ],
             dkim: [
-                { host: 'cfmail._domainkey', value: 'v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC1TaNgLlSyQMNWVLNLvy/neHA1q8dN9NvY8i2jH8yt9mJxv28dfceQJ02f2T0q5U7r5Y0wZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QIDAQAB' },
+                {
+                    host: 'cfmail._domainkey',
+                    value: 'v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC1TaNgLlSyQMNWVLNLvy/neHA1q8dN9NvY8i2jH8yt9mJxv28dfceQJ02f2T0q5U7r5Y0wZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QZz5yE3Q9Z9QIDAQAB',
+                },
             ],
         };
     }

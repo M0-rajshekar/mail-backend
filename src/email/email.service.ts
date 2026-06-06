@@ -6,7 +6,12 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
-import { InboxStatus, EmailDirection, EmailStatus, DomainStatus } from 'generated/prisma';
+import {
+    InboxStatus,
+    EmailDirection,
+    EmailStatus,
+    DomainStatus,
+} from 'generated/prisma';
 import { CloudflareEmailService } from './cloudflare-email.service';
 import { AttachmentStorageService } from './attachment-storage.service';
 import { WebhookDeliveryService } from './webhook-delivery.service';
@@ -88,8 +93,10 @@ export class EmailService {
         // Check if this is the system default domain (e.g., trueprop.xyz)
         // System domains are NOT custom domains - they're shared infrastructure
         const defaultDomain = process.env.DEFAULT_EMAIL_DOMAIN;
-        const isSystemDomain = defaultDomain && emailDomain.toLowerCase() === defaultDomain.toLowerCase();
-        
+        const isSystemDomain =
+            defaultDomain &&
+            emailDomain.toLowerCase() === defaultDomain.toLowerCase();
+
         // Only enforce custom domain checks for non-system domains
         if (!isSystemDomain) {
             // SECURITY CHECK: Check if ANY user has registered this domain (regardless of verification status)
@@ -102,7 +109,7 @@ export class EmailService {
 
             if (registeredDomain && registeredDomain.userId !== userId) {
                 throw new ForbiddenException(
-                    `Domain "${emailDomain}" is already registered by another user. You cannot create inboxes on this domain.`
+                    `Domain "${emailDomain}" is already registered by another user. You cannot create inboxes on this domain.`,
                 );
             }
         }
@@ -121,13 +128,13 @@ export class EmailService {
             // User owns this verified domain - must provide the customDomainId
             if (!dto.customDomainId) {
                 throw new BadRequestException(
-                    `Email "${normalizedEmail}" uses your custom domain "${emailDomain}". Please select this domain from the dropdown when creating the inbox.`
+                    `Email "${normalizedEmail}" uses your custom domain "${emailDomain}". Please select this domain from the dropdown when creating the inbox.`,
                 );
             }
 
             if (dto.customDomainId !== existingCustomDomain.id) {
                 throw new BadRequestException(
-                    `Domain ID mismatch. The email "${normalizedEmail}" belongs to domain "${existingCustomDomain.domain}".`
+                    `Domain ID mismatch. The email "${normalizedEmail}" belongs to domain "${existingCustomDomain.domain}".`,
                 );
             }
 
@@ -145,14 +152,14 @@ export class EmailService {
 
             if (!domain) {
                 throw new BadRequestException(
-                    'Custom domain not found, not verified, or does not belong to you'
+                    'Custom domain not found, not verified, or does not belong to you',
                 );
             }
 
             // Validate email address ends with the correct domain
             if (emailDomain.toLowerCase() !== domain.domain.toLowerCase()) {
                 throw new BadRequestException(
-                    `Email must end with @${domain.domain} when using this custom domain`
+                    `Email must end with @${domain.domain} when using this custom domain`,
                 );
             }
 
@@ -166,7 +173,7 @@ export class EmailService {
 
         if (existing) {
             throw new BadRequestException(
-                `Email address "${normalizedEmail}" is already in use by another inbox`
+                `Email address "${normalizedEmail}" is already in use by another inbox`,
             );
         }
 
@@ -197,7 +204,9 @@ export class EmailService {
             },
         });
 
-        this.logger.log(`Created inbox ${inbox.id} for user ${userId}${customDomainId ? ' on custom domain' : ''}`);
+        this.logger.log(
+            `Created inbox ${inbox.id} for user ${userId}${customDomainId ? ' on custom domain' : ''}`,
+        );
         return inbox;
     }
 
@@ -335,12 +344,13 @@ export class EmailService {
 
         // Validate sender
         const fromEmail = inbox.emailAddress;
-        
+
         // Validate that FROM address is allowed (custom domain must be verified)
-        const fromValidation = await this.customDomainService.validateFromAddress(
-            userId,
-            fromEmail,
-        );
+        const fromValidation =
+            await this.customDomainService.validateFromAddress(
+                userId,
+                fromEmail,
+            );
         if (!fromValidation.valid) {
             throw new BadRequestException(fromValidation.error);
         }
@@ -383,7 +393,9 @@ export class EmailService {
         }
 
         // Send via Cloudflare
-        this.logger.log(`Sending email from ${fromEmail} to ${dto.to.join(', ')} via Cloudflare...`);
+        this.logger.log(
+            `Sending email from ${fromEmail} to ${dto.to.join(', ')} via Cloudflare...`,
+        );
         try {
             const result = await this.cloudflareEmail.sendEmail({
                 to: dto.to,
@@ -448,18 +460,22 @@ export class EmailService {
     // ── Inbound Email Handling ─────────────────────────────────────
 
     async handleInboundEmail(emailAddress: string, rawEmail: Buffer) {
-        this.logger.log(`Processing inbound email for: ${emailAddress}, raw size: ${rawEmail.length} bytes`);
-        
+        this.logger.log(
+            `Processing inbound email for: ${emailAddress}, raw size: ${rawEmail.length} bytes`,
+        );
+
         // Parse email
         let parsed;
         try {
             parsed = await this.emailParser.parseEmail(rawEmail);
-            this.logger.log(`Email parsed: subject="${parsed.subject}", from=${parsed.from?.address}`);
+            this.logger.log(
+                `Email parsed: subject="${parsed.subject}", from=${parsed.from?.address}`,
+            );
         } catch (parseError) {
             this.logger.error(`Failed to parse email: ${parseError.message}`);
             throw parseError;
         }
-        
+
         const recipients = this.emailParser.extractRecipients(parsed);
 
         // Find the inbox
@@ -472,12 +488,14 @@ export class EmailService {
             this.logger.warn(`Inbox not found for ${emailAddress}`);
             return null;
         }
-        
+
         if (inbox.status !== InboxStatus.ACTIVE) {
-            this.logger.warn(`Inbox found but not active: ${emailAddress}, status=${inbox.status}`);
+            this.logger.warn(
+                `Inbox found but not active: ${emailAddress}, status=${inbox.status}`,
+            );
             return null;
         }
-        
+
         this.logger.log(`Found inbox: ${inbox.id} for ${emailAddress}`);
 
         // Determine thread ID
@@ -621,8 +639,10 @@ export class EmailService {
         headers?: Record<string, string>;
     }) {
         const { emailAddress, from, subject, body, bodyHtml, headers } = data;
-        
-        this.logger.log(`Processing parsed inbound email for: ${emailAddress}, from: ${from}, subject: "${subject}"`);
+
+        this.logger.log(
+            `Processing parsed inbound email for: ${emailAddress}, from: ${from}, subject: "${subject}"`,
+        );
 
         // Find the inbox
         const inbox = await this.prisma.inbox.findUnique({
@@ -634,12 +654,14 @@ export class EmailService {
             this.logger.warn(`Inbox not found for ${emailAddress}`);
             return null;
         }
-        
+
         if (inbox.status !== InboxStatus.ACTIVE) {
-            this.logger.warn(`Inbox found but not active: ${emailAddress}, status=${inbox.status}`);
+            this.logger.warn(
+                `Inbox found but not active: ${emailAddress}, status=${inbox.status}`,
+            );
             return null;
         }
-        
+
         this.logger.log(`Found inbox: ${inbox.id} for ${emailAddress}`);
 
         // Determine thread ID by subject
@@ -711,7 +733,9 @@ export class EmailService {
         // Emit websocket event
         if (this.emailGateway) {
             this.emailGateway.emitEmailReceived(inbox.id, message);
-            this.emailGateway.emitInboxUpdate(inbox.id, { totalEmails: inbox.totalEmails + 1 });
+            this.emailGateway.emitInboxUpdate(inbox.id, {
+                totalEmails: inbox.totalEmails + 1,
+            });
         }
 
         // Trigger webhooks
@@ -847,9 +871,9 @@ export class EmailService {
 
         await this.prisma.emailMessage.update({
             where: { id: messageId },
-            data: { 
+            data: {
                 isRead: true,
-                status: EmailStatus.READ 
+                status: EmailStatus.READ,
             },
         });
 
@@ -883,9 +907,12 @@ export class EmailService {
 
         await this.prisma.emailMessage.update({
             where: { id: messageId },
-            data: { 
-                status: message.direction === 'INBOUND' ? EmailStatus.RECEIVED : EmailStatus.SENT,
-                isRead: true 
+            data: {
+                status:
+                    message.direction === 'INBOUND'
+                        ? EmailStatus.RECEIVED
+                        : EmailStatus.SENT,
+                isRead: true,
             },
         });
 
@@ -942,7 +969,9 @@ export class EmailService {
             where: { userId, status: 'ACTIVE' },
         });
 
-        if (!canCreateWebhook(user?.currentPlan || 'FREE', currentWebhookCount)) {
+        if (
+            !canCreateWebhook(user?.currentPlan || 'FREE', currentWebhookCount)
+        ) {
             const limit = getWebhookLimit(user?.currentPlan || 'FREE');
             throw new BadRequestException(
                 `Webhook limit reached: your ${user?.currentPlan || 'FREE'} plan allows ${limit === -1 ? 'unlimited' : limit} webhooks. Upgrade to create more.`,
@@ -1202,10 +1231,12 @@ export class EmailService {
     async getConfig() {
         const apiToken = process.env.CLOUDFLARE_API_TOKEN;
         const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-        
+
         return {
             cloudflareConfigured: !!(apiToken && accountId),
-            accountId: accountId ? `${accountId.substring(0, 4)}...${accountId.substring(accountId.length - 4)}` : null,
+            accountId: accountId
+                ? `${accountId.substring(0, 4)}...${accountId.substring(accountId.length - 4)}`
+                : null,
             apiTokenLength: apiToken ? apiToken.length : 0,
             senderDomain: process.env.SENDER_DOMAIN || null,
         };
