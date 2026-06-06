@@ -537,24 +537,38 @@ export class CloudflareZonesService {
             steps.push('SPF record already configured for Cloudflare');
         }
 
-        // Step 4.5: Check for existing DKIM/DMARC from other providers
-        const dkimRecords = existingRecords.filter(
-            (r) => r.type === 'TXT' && r.name?.startsWith('dkim.') || r.name?.startsWith('_domainkey'),
-        );
+        // Step 4.5: Add DMARC record (critical for deliverability with corporate email servers)
         const dmarcRecord = existingRecords.find(
             (r) => r.type === 'TXT' && r.name === '_dmarc.' + domain,
+        );
+        
+        if (!dmarcRecord) {
+            const dmarcValue = 'v=DMARC1; p=quarantine; rua=mailto:dmarc@' + domain + '; ruf=mailto:dmarc@' + domain + '; fo=1';
+            const result = await this.createDnsRecord(zoneId, {
+                type: 'TXT',
+                name: '_dmarc.' + domain,
+                content: dmarcValue,
+                ttl: 1,
+            });
+            
+            if (result) {
+                steps.push('DMARC record added (prevents corporate email blocking)');
+            } else {
+                errors.push('Failed to add DMARC record');
+            }
+        } else {
+            steps.push('DMARC record already exists');
+        }
+
+        // Step 4.6: Check for existing DKIM from other providers
+        const dkimRecords = existingRecords.filter(
+            (r) => r.type === 'TXT' && r.name?.startsWith('dkim.') || r.name?.startsWith('_domainkey'),
         );
         
         if (dkimRecords.length > 0) {
             steps.push(`⚠️  Found ${dkimRecords.length} existing DKIM record(s) - these may belong to another email provider`);
             steps.push(`   DKIM names: ${dkimRecords.map(r => r.name).join(', ')}`);
             steps.push(`   Cloudflare Email Routing handles DKIM automatically - existing keys may cause conflicts`);
-        }
-        
-        if (dmarcRecord) {
-            steps.push(`⚠️  Found existing DMARC record`);
-            steps.push(`   Current: ${dmarcRecord.content}`);
-            steps.push(`   Cloudflare will use this DMARC policy for email delivery`);
         }
 
         // Step 5: Create Email Routing rule (catch-all → Worker)
