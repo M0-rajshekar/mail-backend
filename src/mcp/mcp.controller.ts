@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Req, Res, Body } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { EmailService } from '../email/email.service';
+import { CustomDomainService } from '../email/custom-domain.service';
 import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationService';
 import { Logger } from '@nestjs/common';
 
@@ -44,6 +45,7 @@ export class McpController {
 
     constructor(
         private readonly emailService: EmailService,
+        private readonly customDomainService: CustomDomainService,
         private readonly apiKeyValidation: ApiKeyValidationService,
     ) {}
 
@@ -241,6 +243,84 @@ export class McpController {
                                     properties: {},
                                 },
                             },
+                            {
+                                name: 'domain.list_domains',
+                                description: 'List all registered custom domains',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {},
+                                },
+                            },
+                            {
+                                name: 'domain.register',
+                                description: 'Register a new custom domain',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        domain: {
+                                            type: 'string',
+                                            description: 'Domain to register (e.g., example.com)',
+                                        },
+                                    },
+                                    required: ['domain'],
+                                },
+                            },
+                            {
+                                name: 'domain.verify',
+                                description: 'Verify domain ownership and configure email routing',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        domainId: {
+                                            type: 'string',
+                                            description: 'Domain ID from list_domains',
+                                        },
+                                    },
+                                    required: ['domainId'],
+                                },
+                            },
+                            {
+                                name: 'domain.get_details',
+                                description: 'Get domain details including DNS records',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        domainId: {
+                                            type: 'string',
+                                            description: 'Domain ID',
+                                        },
+                                    },
+                                    required: ['domainId'],
+                                },
+                            },
+                            {
+                                name: 'domain.delete',
+                                description: 'Delete a custom domain and all associated inboxes',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        domainId: {
+                                            type: 'string',
+                                            description: 'Domain ID to delete',
+                                        },
+                                    },
+                                    required: ['domainId'],
+                                },
+                            },
+                            {
+                                name: 'domain.get_dns_records',
+                                description: 'Get required DNS records for domain verification',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        domainId: {
+                                            type: 'string',
+                                            description: 'Domain ID',
+                                        },
+                                    },
+                                    required: ['domainId'],
+                                },
+                            },
                         ],
                     },
                 };
@@ -306,6 +386,36 @@ export class McpController {
 
                         case 'email.get_inbox_stats': {
                             result = await this.emailService.getStats(userId);
+                            break;
+                        }
+
+                        case 'domain.list_domains': {
+                            result = await this.customDomainService.getUserDomains(userId);
+                            break;
+                        }
+
+                        case 'domain.register': {
+                            result = await this.customDomainService.registerDomain(userId, args.domain);
+                            break;
+                        }
+
+                        case 'domain.verify': {
+                            result = await this.customDomainService.verifyDomain(userId, args.domainId);
+                            break;
+                        }
+
+                        case 'domain.get_details': {
+                            result = await this.customDomainService.getDomainDetails(userId, args.domainId);
+                            break;
+                        }
+
+                        case 'domain.delete': {
+                            result = await this.customDomainService.deleteDomain(userId, args.domainId);
+                            break;
+                        }
+
+                        case 'domain.get_dns_records': {
+                            result = await this.customDomainService.getDnsRecords(userId, args.domainId);
                             break;
                         }
 

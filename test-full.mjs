@@ -3,7 +3,7 @@
  */
 import { PrismaClient } from './generated/prisma/index.js';
 
-const MCP = 'http://localhost:4000/mcp/social-cli';
+const MCP = 'http://localhost:4000/mcp/AgentMail';
 const p   = new PrismaClient();
 
 const green  = s => `\x1b[32m${s}\x1b[0m`;

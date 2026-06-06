@@ -72,6 +72,8 @@ model EmailMessage {
   bodyHtml     String?
   direction    EmailDirection
   status       EmailStatus            @default(RECEIVED)
+  isRead       Boolean                @default(false)
+  starred      Boolean                @default(false)
   createdAt    DateTime               @default(now())
   sentAt       DateTime?
   receivedAt   DateTime?
@@ -85,6 +87,8 @@ model EmailMessage {
   @@index([fromAddress])
   @@index([createdAt])
   @@index([direction])
+  @@index([isRead])
+  @@index([starred])
   @@map("email_messages")
 }
 
@@ -299,6 +303,7 @@ enum EmailStatus {
   SENT
   FAILED
   DRAFT
+  TRASH
 }
 
 enum DomainStatus {

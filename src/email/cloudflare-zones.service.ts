@@ -425,11 +425,39 @@ export class CloudflareZonesService {
             { name: domain, content: 'route3.mx.cloudflare.net', priority: 30 },
         ];
 
-        const existingMx = existingRecords.filter(
-            (r) => r.type === 'MX' && r.content?.includes('mx.cloudflare.net'),
+        // Check for existing MX records from other providers (Zoho, Google, Microsoft, etc.)
+        const allExistingMx = existingRecords.filter((r) => r.type === 'MX');
+        const existingCloudflareMx = allExistingMx.filter(
+            (r) => r.content?.includes('mx.cloudflare.net'),
+        );
+        const otherProviderMx = allExistingMx.filter(
+            (r) => !r.content?.includes('mx.cloudflare.net'),
         );
 
-        if (existingMx.length === 0) {
+        // Warn about existing email providers
+        if (otherProviderMx.length > 0) {
+            const providers: string[] = otherProviderMx.map((r) => {
+                const content = r.content?.toLowerCase() || '';
+                if (content.includes('zoho')) return 'Zoho Mail';
+                if (content.includes('google') || content.includes('googlemail')) return 'Google Workspace (Gmail)';
+                if (content.includes('outlook') || content.includes('protection.outlook')) return 'Microsoft 365 (Outlook)';
+                if (content.includes('protonmail')) return 'ProtonMail';
+                if (content.includes('fastmail')) return 'Fastmail';
+                if (content.includes('namecheap')) return 'Namecheap Private Email';
+                if (content.includes('crazydomains')) return 'Crazy Domains';
+                if (content.includes('hostinger')) return 'Hostinger Email';
+                return `Other (${r.content})`;
+            });
+            const uniqueProviders = [...new Set(providers)];
+            
+            steps.push(`⚠️  Detected existing email provider(s): ${uniqueProviders.join(', ')}`);
+            steps.push(`   Existing MX records: ${otherProviderMx.map(r => r.content).join(', ')}`);
+            steps.push(`   Cloudflare MX records will be added with priority 10/20/30`);
+            steps.push(`   ⚠️  WARNING: Having multiple MX providers may cause emails to be split between services`);
+            steps.push(`   Recommendation: Remove other provider MX records to ensure all emails route through Cloudflare`);
+        }
+
+        if (existingCloudflareMx.length === 0) {
             for (const mx of mxRecords) {
                 const result = await this.createDnsRecord(zoneId, {
                     type: 'MX',
@@ -440,13 +468,13 @@ export class CloudflareZonesService {
                 });
 
                 if (result) {
-                    steps.push(`MX record added: ${mx.content} (${mx.priority})`);
+                    steps.push(`MX record added: ${mx.content} (priority: ${mx.priority})`);
                 } else {
                     errors.push(`Failed to add MX record: ${mx.content}`);
                 }
             }
         } else {
-            steps.push(`MX records already exist (${existingMx.length})`);
+            steps.push(`Cloudflare MX records already exist (${existingCloudflareMx.length})`);
         }
 
         // Step 4: Add/merge SPF record
@@ -470,6 +498,20 @@ export class CloudflareZonesService {
                 errors.push('Failed to add SPF record');
             }
         } else if (!existingSpf.content?.includes('_spf.mx.cloudflare.net')) {
+            // Detect other providers in SPF
+            const spfContent = existingSpf.content || '';
+            const otherProviders: string[] = [];
+            if (spfContent.includes('zoho')) otherProviders.push('Zoho Mail');
+            if (spfContent.includes('google') || spfContent.includes('_spf.google')) otherProviders.push('Google Workspace');
+            if (spfContent.includes('outlook') || spfContent.includes('spf.protection.outlook')) otherProviders.push('Microsoft 365');
+            if (spfContent.includes('protonmail')) otherProviders.push('ProtonMail');
+            if (spfContent.includes('fastmail')) otherProviders.push('Fastmail');
+            
+            if (otherProviders.length > 0) {
+                steps.push(`⚠️  Existing SPF includes: ${otherProviders.join(', ')}`);
+                steps.push(`   Merging with Cloudflare SPF...`);
+            }
+
             // Merge existing SPF with Cloudflare's
             const merged = existingSpf.content.replace(
                 /~all|-all|\?all/,
@@ -486,13 +528,33 @@ export class CloudflareZonesService {
                 });
 
                 if (result) {
-                    steps.push('SPF record merged with Cloudflare');
+                    steps.push(`SPF record merged (kept: ${otherProviders.join(', ')}, added: Cloudflare)`);
                 } else {
                     errors.push('Failed to update SPF record');
                 }
             }
         } else {
             steps.push('SPF record already configured for Cloudflare');
+        }
+
+        // Step 4.5: Check for existing DKIM/DMARC from other providers
+        const dkimRecords = existingRecords.filter(
+            (r) => r.type === 'TXT' && r.name?.startsWith('dkim.') || r.name?.startsWith('_domainkey'),
+        );
+        const dmarcRecord = existingRecords.find(
+            (r) => r.type === 'TXT' && r.name === '_dmarc.' + domain,
+        );
+        
+        if (dkimRecords.length > 0) {
+            steps.push(`⚠️  Found ${dkimRecords.length} existing DKIM record(s) - these may belong to another email provider`);
+            steps.push(`   DKIM names: ${dkimRecords.map(r => r.name).join(', ')}`);
+            steps.push(`   Cloudflare Email Routing handles DKIM automatically - existing keys may cause conflicts`);
+        }
+        
+        if (dmarcRecord) {
+            steps.push(`⚠️  Found existing DMARC record`);
+            steps.push(`   Current: ${dmarcRecord.content}`);
+            steps.push(`   Cloudflare will use this DMARC policy for email delivery`);
         }
 
         // Step 5: Create Email Routing rule (catch-all → Worker)

@@ -1,8 +1,8 @@
-# Social CLI — Backend API
+# AgentMail — Backend API
 
-The backend server for Social CLI. Built with NestJS, Prisma, and the MCP protocol.
+The backend server for AgentMail. Built with NestJS, Prisma, and the MCP protocol.
 
-**Production URL:** `https://backend.socialcli.xyz`
+**Production URL:** `https://backend.agentmail.io`
 
 ---
 
@@ -11,7 +11,7 @@ The backend server for Social CLI. Built with NestJS, Prisma, and the MCP protoc
 The MCP endpoint is available at:
 
 ```
-https://backend.socialcli.xyz/mcp/social-cli
+https://backend.agentmail.io/mcp/AgentMail
 ```
 
 **MCP client config (Claude Desktop, Cursor, etc.):**
@@ -19,8 +19,8 @@ https://backend.socialcli.xyz/mcp/social-cli
 ```json
 {
   "mcpServers": {
-    "social-cli": {
-      "url": "https://backend.socialcli.xyz/mcp/social-cli",
+    "AgentMail": {
+      "url": "https://backend.agentmail.io/mcp/AgentMail",
       "headers": {
         "x-api-key": "sk_live_your_key_here"
       }
@@ -32,7 +32,7 @@ https://backend.socialcli.xyz/mcp/social-cli
 **Test the MCP endpoint:**
 
 ```bash
-curl -X POST https://backend.socialcli.xyz/mcp/social-cli \
+curl -X POST https://backend.agentmail.io/mcp/AgentMail \
   -H "x-api-key: sk_live_your_key" \
   -H "Content-Type: application/json" \
   -d '{"method":"tools/list","params":{},"jsonrpc":"2.0","id":1}'
@@ -75,7 +75,7 @@ ZERNIO_WEBHOOK_SECRET=...
 
 | Route | Description |
 |-------|-------------|
-| `POST /mcp/social-cli` | MCP endpoint for AI agents |
+| `POST /mcp/AgentMail` | MCP endpoint for AI agents |
 | `GET /x402/subscriptions/:network/:plan/:period` | X402 subscription payment |
 | `POST /x402/subscriptions/:network/:plan/:period` | X402 subscription confirm |
 | `POST /payments/webhook/social/confirm-payin-completed` | Payment webhook |

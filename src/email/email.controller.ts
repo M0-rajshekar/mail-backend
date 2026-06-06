@@ -195,6 +195,27 @@ export class EmailController {
         return this.emailService.markAsRead(userId, messageId);
     }
 
+    @Put('messages/:id/star')
+    @ApiOperation({ summary: 'Toggle star on message' })
+    async toggleStar(@Param('id') messageId: string, @Req() req: Request) {
+        const userId = req.user as string;
+        return this.emailService.toggleStar(userId, messageId);
+    }
+
+    @Put('messages/:id/trash')
+    @ApiOperation({ summary: 'Move message to trash' })
+    async moveToTrash(@Param('id') messageId: string, @Req() req: Request) {
+        const userId = req.user as string;
+        return this.emailService.moveToTrash(userId, messageId);
+    }
+
+    @Put('messages/:id/restore')
+    @ApiOperation({ summary: 'Restore message from trash' })
+    async restoreFromTrash(@Param('id') messageId: string, @Req() req: Request) {
+        const userId = req.user as string;
+        return this.emailService.restoreFromTrash(userId, messageId);
+    }
+
     // ── Threads ─────────────────────────────────────────────────────
 
     @Get('threads/:id')

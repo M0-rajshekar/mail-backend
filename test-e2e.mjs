@@ -5,7 +5,7 @@
 
 import { PrismaClient } from './generated/prisma/index.js';
 
-const BASE = 'http://localhost:4000/mcp/social-cli';
+const BASE = 'http://localhost:4000/mcp/AgentMail';
 const p    = new PrismaClient();
 
 const bold   = s => `\x1b[1m${s}\x1b[0m`;

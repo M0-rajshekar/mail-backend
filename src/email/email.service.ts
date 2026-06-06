@@ -847,10 +847,49 @@ export class EmailService {
 
         await this.prisma.emailMessage.update({
             where: { id: messageId },
-            data: { status: EmailStatus.READ },
+            data: { 
+                isRead: true,
+                status: EmailStatus.READ 
+            },
         });
 
         return message;
+    }
+
+    async toggleStar(userId: string, messageId: string) {
+        const message = await this.getMessage(userId, messageId);
+
+        const updated = await this.prisma.emailMessage.update({
+            where: { id: messageId },
+            data: { starred: !message.starred },
+        });
+
+        return updated;
+    }
+
+    async moveToTrash(userId: string, messageId: string) {
+        const message = await this.getMessage(userId, messageId);
+
+        await this.prisma.emailMessage.update({
+            where: { id: messageId },
+            data: { status: EmailStatus.TRASH },
+        });
+
+        return { success: true };
+    }
+
+    async restoreFromTrash(userId: string, messageId: string) {
+        const message = await this.getMessage(userId, messageId);
+
+        await this.prisma.emailMessage.update({
+            where: { id: messageId },
+            data: { 
+                status: message.direction === 'INBOUND' ? EmailStatus.RECEIVED : EmailStatus.SENT,
+                isRead: true 
+            },
+        });
+
+        return { success: true };
     }
 
     // ── Reply & Forward ─────────────────────────────────────────────

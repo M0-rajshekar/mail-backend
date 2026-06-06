@@ -3,7 +3,7 @@
  * Run: node test-mcp.mjs
  */
 
-const BASE    = "http://localhost:4000/mcp/social-cli";
+const BASE    = "http://localhost:4000/mcp/AgentMail";
 const API_KEY = "sk_EHSEd3pR7mPHqZjM9g7iMpwrseDrzRNR";
 const BAD_KEY = "sk_badkey12345678901234567890123456";
 
