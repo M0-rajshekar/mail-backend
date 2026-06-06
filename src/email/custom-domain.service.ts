@@ -285,7 +285,29 @@ export class CustomDomainService {
             },
         });
 
-        return domains.map((domain) => ({
+        // Re-fetch nameservers from Cloudflare if missing (e.g., token was fixed after registration)
+        const updatedDomains = await Promise.all(
+            domains.map(async (domain) => {
+                if (!domain.nameservers || domain.nameservers.length === 0) {
+                    try {
+                        const zoneResult = await this.cloudflareZones.getZoneDetails(domain.domain);
+                        if (zoneResult?.nameservers && zoneResult.nameservers.length > 0) {
+                            // Update database with nameservers
+                            await this.prisma.customDomain.update({
+                                where: { id: domain.id },
+                                data: { nameservers: zoneResult.nameservers },
+                            });
+                            domain.nameservers = zoneResult.nameservers;
+                        }
+                    } catch (e: any) {
+                        this.logger.debug(`Could not fetch nameservers for ${domain.domain}: ${e.message}`);
+                    }
+                }
+                return domain;
+            }),
+        );
+
+        return updatedDomains.map((domain) => ({
             id: domain.id,
             domain: domain.domain,
             status: domain.status,
