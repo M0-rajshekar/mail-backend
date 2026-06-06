@@ -225,11 +225,15 @@ export class CustomDomainService {
                     `Cloudflare nameservers for ${normalizedDomain}: ${nameservers.join(', ')}`,
                 );
             } else {
-                zoneMessage = 'Could not retrieve Cloudflare nameservers. Please ensure your Cloudflare API token has Zone:Edit permissions.';
+                zoneMessage = 'Cloudflare zone created but no nameservers returned. Your API token may be missing Zone:Read permission. Go to Cloudflare dashboard → My Profile → API Tokens → Edit token → Add: Zone Read and Zone Edit permissions.';
             }
         } catch (e: any) {
             this.logger.error(`Zone API failed for ${normalizedDomain}: ${e.message}`);
-            zoneMessage = 'Failed to setup Cloudflare zone. Please check your Cloudflare API token and account ID.';
+            if (e.message?.includes('zone.create')) {
+                zoneMessage = 'Missing Zone:Edit permission. Your Cloudflare API token needs Zone Read and Zone Edit permissions. Go to Cloudflare dashboard → My Profile → API Tokens → Edit your token → Under Permissions add: Zone Read, Zone Edit → Under Zone Resources select: All zones from an account → Save and update CLOUDFLARE_API_TOKEN in your backend/.env file.';
+            } else {
+                zoneMessage = 'Failed to setup Cloudflare zone. Please check your Cloudflare API token and account ID.';
+            }
         }
 
         // IMPORTANT: Do NOT fallback to DNS NS lookup
