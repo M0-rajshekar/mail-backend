@@ -49,8 +49,47 @@ export class McpController {
         private readonly apiKeyValidation: ApiKeyValidationService,
     ) {}
 
+    /**
+     * Track MCP usage: send FlexPrice event for analytics
+     */
+    private async trackMcpUsage(userId: string, toolName: string, apiKey: string, quantity: number = 1) {
+        try {
+            const { sendFlexPriceEvent } = await import('../utils/siren.utils');
+            const { getToolCredits } = await import('../utils/tool-credits');
+            await sendFlexPriceEvent({
+                type: toolName,
+                id: `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+                time: new Date().toISOString(),
+                source: 'AgentMail_MCP',
+                subject: userId,
+                data: {
+                    credits: getToolCredits(toolName),
+                    toolType: toolName,
+                    quantity,
+                    currentPlan: 'mcp',
+                },
+            });
+        } catch (e) {
+            console.warn(`[trackMcpUsage] Failed to send FlexPrice event for ${toolName}:`, e);
+        }
+    }
+
     @Get('sse')
     async handleSse(@Req() req: Request, @Res() res: Response) {
+        // Validate API key before opening SSE stream
+        const apiKey = req.headers['x-api-key'] as string;
+        if (!apiKey) {
+            return res.status(401).json({ error: 'Unauthorized: x-api-key header required' });
+        }
+        try {
+            const validated = await this.apiKeyValidation.validateApiKeyAndBalance(apiKey, 0, 'list_inboxes');
+            if (!validated) {
+                return res.status(401).json({ error: 'Invalid API key' });
+            }
+        } catch (error: any) {
+            return res.status(401).json({ error: error.message });
+        }
+
         const clientId =
             (req.query.clientId as string) || `client-${Date.now()}`;
 
@@ -95,11 +134,17 @@ export class McpController {
         }
 
         try {
+            // Determine actual tool and required credits
+            const toolName = body.method === 'tools/call' ? body.params?.name : null;
+            const { getToolCredits } = await import('../utils/tool-credits');
+            const requiredCredits = toolName ? getToolCredits(toolName) : 0;
+            const validationToolName = (toolName || 'list_inboxes') as any;
+
             const validated =
                 await this.apiKeyValidation.validateApiKeyAndBalance(
                     apiKey,
-                    0,
-                    'create_post' as any,
+                    requiredCredits,
+                    validationToolName,
                 );
             if (!validated) {
                 return res.status(401).json({
@@ -110,7 +155,12 @@ export class McpController {
             }
             const userId = validated.userId;
 
-            const response = await this.handleMcpMethod(body, userId);
+            const response = await this.handleMcpMethod(body, userId, apiKey);
+
+            // Deduct credits after successful tool execution
+            if (toolName && requiredCredits > 0) {
+                await this.apiKeyValidation.deductCredits(apiKey, requiredCredits, toolName);
+            }
 
             // Send via SSE if client connected
             const client = this.clients.get(clientId);
@@ -135,6 +185,7 @@ export class McpController {
     private async handleMcpMethod(
         req: McpRequest,
         userId: string,
+        apiKey?: string,
     ): Promise<McpResponse> {
         const { method, params, id } = req;
 
@@ -451,6 +502,11 @@ export class McpController {
 
                         default:
                             throw new Error(`Unknown tool: ${toolName}`);
+                    }
+
+                    // Track successful MCP tool usage
+                    if (apiKey) {
+                        await this.trackMcpUsage(userId, toolName, apiKey, Array.isArray(result) ? result.length : 1);
                     }
 
                     return {

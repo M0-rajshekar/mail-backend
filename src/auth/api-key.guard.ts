@@ -5,10 +5,27 @@ import {
     UnauthorizedException,
 } from '@nestjs/common';
 import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationService';
+import { getToolCredits } from '../utils/tool-credits';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
     constructor(private readonly apiKeyValidation: ApiKeyValidationService) {}
+
+    private getToolNameFromRequest(request: any): string {
+        const method = request.method;
+        const path = request.route?.path || request.path;
+        const map: Record<string, string> = {
+            'POST /email/inboxes': 'create_inbox',
+            'DELETE /email/inboxes/:id': 'delete_inbox',
+            'POST /email/inboxes/:id/messages': 'send_email',
+            'GET /email/inboxes': 'list_inboxes',
+            'GET /email/inboxes/:id': 'get_inbox',
+            'GET /email/inboxes/:id/messages': 'list_messages',
+            'GET /email/messages/:id': 'get_message',
+            'GET /email/stats': 'get_analytics',
+        };
+        return map[`${method} ${path}`] || 'list_inboxes';
+    }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
@@ -21,8 +38,16 @@ export class ApiKeyGuard implements CanActivate {
             return true;
         }
 
-        // If already authenticated via JWT, skip API key check
+        const toolName = this.getToolNameFromRequest(request);
+        const requiredCredits = getToolCredits(toolName);
+
+        // If already authenticated via JWT, still validate credits
         if (request.user) {
+            const apiKey = request.apiKey || await this.apiKeyValidation.findApiKeyByUserId(request.user);
+            if (apiKey) {
+                await this.apiKeyValidation.validateApiKeyAndBalance(apiKey, requiredCredits, toolName as any);
+                request.apiKey = apiKey;
+            }
             return true;
         }
 
@@ -39,23 +64,19 @@ export class ApiKeyGuard implements CanActivate {
         }
 
         try {
-            // Validate API key (no credit deduction here, just validation)
             const validatedUser =
                 await this.apiKeyValidation.validateApiKeyAndBalance(
                     key,
-                    0, // No credits deducted for validation
-                    'create_inbox', // Default tool name
+                    requiredCredits,
+                    toolName as any,
                 );
 
-            // Attach user to request
             request.user = validatedUser.userId;
-
-            // Store API key for potential credit deduction later
             request.apiKey = key;
 
             return true;
         } catch (error) {
-            throw new UnauthorizedException('Invalid API key');
+            throw new UnauthorizedException('Invalid API key or insufficient credits');
         }
     }
 }

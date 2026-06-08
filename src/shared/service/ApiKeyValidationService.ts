@@ -193,6 +193,29 @@ export class ApiKeyValidationService {
         }
 
         this.logger.log(`Deducted ${creditsToDeduct} credits for ${toolName}`);
+
+        // Log to CreditUsageLog for ledger/audit
+        try {
+            await this.prisma.creditUsageLog.create({
+                data: {
+                    userId: apiKeyRecord.User.id,
+                    toolName: toolName || 'unknown',
+                    credits: creditsToDeduct,
+                    description: `${toolName} usage`,
+                    source: 'api',
+                },
+            });
+        } catch (logError) {
+            this.logger.warn(`Failed to log credit usage: ${logError.message}`);
+        }
+    }
+
+    async findApiKeyByUserId(userId: string): Promise<string | null> {
+        const record = await this.prisma.apiKey.findUnique({
+            where: { userId },
+            select: { key: true },
+        });
+        return record?.key || null;
     }
 
     private isValidApiKeyFormat(apiKey: string): boolean {

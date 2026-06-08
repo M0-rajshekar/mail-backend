@@ -624,6 +624,59 @@ export class PaymentsService {
         }
     }
     /**
+     * Get credit usage ledger for a user
+     */
+    async getCreditLedger(
+        userId: string,
+        limit: number,
+        offset: number,
+    ): Promise<{
+        logs: Array<{
+            id: string;
+            toolName: string;
+            credits: number;
+            description: string | null;
+            source: string;
+            createdAt: Date;
+        }>;
+        total: number;
+        totalCreditsUsed: number;
+    }> {
+        try {
+            const [logs, total] = await Promise.all([
+                this.prismaService.creditUsageLog.findMany({
+                    where: { userId },
+                    orderBy: { createdAt: 'desc' },
+                    take: limit,
+                    skip: offset,
+                    select: {
+                        id: true,
+                        toolName: true,
+                        credits: true,
+                        description: true,
+                        source: true,
+                        createdAt: true,
+                    },
+                }),
+                this.prismaService.creditUsageLog.count({
+                    where: { userId },
+                }),
+            ]);
+
+            const totalCreditsUsed = logs.reduce((sum, log) => sum + log.credits, 0);
+
+            return {
+                logs,
+                total,
+                totalCreditsUsed,
+            };
+        } catch (error) {
+            this.logger.error('Error getting credit ledger:', error);
+            return { logs: [], total: 0, totalCreditsUsed: 0 };
+        }
+    }
+
+    /**
      * Check if a user's subscription is scheduled for cancellation
      * Returns cancellation info if subscription is scheduled to be cancelled
      */

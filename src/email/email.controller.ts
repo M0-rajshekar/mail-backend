@@ -118,34 +118,82 @@ export class EmailController {
         private readonly apiKeyValidation: ApiKeyValidationService,
     ) {}
 
+    /**
+     * Track API usage: deduct credits + send FlexPrice event
+     */
+    private async trackUsage(req: Request, toolName: string, quantity: number = 1) {
+        const apiKey = (req as any).apiKey as string;
+        if (!apiKey) return;
+
+        const { getToolCredits } = await import('../utils/tool-credits');
+        const credits = getToolCredits(toolName);
+
+        // Deduct credits
+        try {
+            await this.apiKeyValidation.deductCredits(apiKey, credits, toolName);
+        } catch (e) {
+            // Don't fail the request if credit deduction fails
+            console.warn(`[trackUsage] Failed to deduct credits for ${toolName}:`, e);
+        }
+
+        // Send FlexPrice event
+        try {
+            const { sendFlexPriceEvent } = await import('../utils/siren.utils');
+            await sendFlexPriceEvent({
+                type: toolName,
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+                time: new Date().toISOString(),
+                source: 'AgentMail_API',
+                subject: (req as any).user as string,
+                data: {
+                    credits,
+                    toolType: toolName,
+                    quantity,
+                    currentPlan: 'email',
+                },
+            });
+        } catch (e) {
+            // Don't fail the request if event tracking fails
+            console.warn(`[trackUsage] Failed to send FlexPrice event for ${toolName}:`, e);
+        }
+    }
+
     // ── Inboxes ─────────────────────────────────────────────────────
 
     @Post('inboxes')
     @ApiOperation({ summary: 'Create a new inbox' })
     async createInbox(@Body() dto: CreateInboxDto, @Req() req: Request) {
         const userId = req.user as string;
-        return this.emailService.createInbox(userId, dto);
+        const result = await this.emailService.createInbox(userId, dto);
+        await this.trackUsage(req, 'create_inbox');
+        return result;
     }
 
     @Get('inboxes')
     @ApiOperation({ summary: 'List all inboxes' })
     async getInboxes(@Req() req: Request) {
         const userId = req.user as string;
-        return this.emailService.getInboxes(userId);
+        const result = await this.emailService.getInboxes(userId);
+        await this.trackUsage(req, 'list_inboxes', result?.length ?? 0);
+        return result;
     }
 
     @Get('inboxes/:id')
     @ApiOperation({ summary: 'Get inbox details' })
     async getInbox(@Param('id') id: string, @Req() req: Request) {
         const userId = req.user as string;
-        return this.emailService.getInbox(userId, id);
+        const result = await this.emailService.getInbox(userId, id);
+        await this.trackUsage(req, 'get_inbox');
+        return result;
     }
 
     @Delete('inboxes/:id')
     @ApiOperation({ summary: 'Delete an inbox' })
     async deleteInbox(@Param('id') id: string, @Req() req: Request) {
         const userId = req.user as string;
-        return this.emailService.deleteInbox(userId, id);
+        const result = await this.emailService.deleteInbox(userId, id);
+        await this.trackUsage(req, 'delete_inbox');
+        return result;
     }
 
     // ── Stats ─────────────────────────────────────────────────────
@@ -154,7 +202,9 @@ export class EmailController {
     @ApiOperation({ summary: 'Get dashboard stats' })
     async getStats(@Req() req: Request) {
         const userId = req.user as string;
-        return this.emailService.getStats(userId);
+        const result = await this.emailService.getStats(userId);
+        await this.trackUsage(req, 'get_analytics');
+        return result;
     }
 
     // ── Messages ────────────────────────────────────────────────────
@@ -167,14 +217,9 @@ export class EmailController {
         @Req() req: Request,
     ) {
         const userId = req.user as string;
-        const apiKey = (req as any).apiKey;
-
-        // Deduct credits for sending email
-        if (apiKey) {
-            await this.apiKeyValidation.deductCredits(apiKey, 1, 'send_email');
-        }
-
-        return this.emailService.sendEmail(userId, inboxId, dto);
+        const result = await this.emailService.sendEmail(userId, inboxId, dto);
+        await this.trackUsage(req, 'send_email');
+        return result;
     }
 
     @Get('inboxes/:id/messages')
@@ -188,14 +233,18 @@ export class EmailController {
         @Req() req: Request,
     ) {
         const userId = req.user as string;
-        return this.emailService.getMessages(userId, inboxId, +limit, +offset);
+        const result = await this.emailService.getMessages(userId, inboxId, +limit, +offset);
+        await this.trackUsage(req, 'list_messages', Array.isArray(result) ? result.length : 0);
+        return result;
     }
 
     @Get('messages/:id')
     @ApiOperation({ summary: 'Get message details' })
     async getMessage(@Param('id') messageId: string, @Req() req: Request) {
         const userId = req.user as string;
-        return this.emailService.getMessage(userId, messageId);
+        const result = await this.emailService.getMessage(userId, messageId);
+        await this.trackUsage(req, 'get_message');
+        return result;
     }
 
     @Put('messages/:id/read')
@@ -269,13 +318,15 @@ export class EmailController {
         @Req() req?: Request,
     ) {
         const userId = (req as any).user as string;
-        return this.emailService.searchEmails(userId, query, {
+        const result = await this.emailService.searchEmails(userId, query, {
             inboxId,
             from,
             subject,
             limit: +limit,
             offset: +offset,
         });
+        await this.trackUsage(req as Request, 'search_emails', Array.isArray(result) ? result.length : 0);
+        return result;
     }
 
     @Get('search/semantic')
@@ -288,7 +339,9 @@ export class EmailController {
         @Req() req?: Request,
     ) {
         const userId = (req as any).user as string;
-        return this.emailService.semanticSearch(userId, query, +limit);
+        const result = await this.emailService.semanticSearch(userId, query, +limit);
+        await this.trackUsage(req as Request, 'semantic_search', Array.isArray(result) ? result.length : 0);
+        return result;
     }
 
     // ── Inbound Email Handler ───────────────────────────────────────
@@ -358,21 +411,27 @@ export class EmailController {
         @Req() req: Request,
     ) {
         const userId = req.user as string;
-        return this.emailService.registerWebhook(userId, dto);
+        const result = await this.emailService.registerWebhook(userId, dto);
+        await this.trackUsage(req, 'register_webhook');
+        return result;
     }
 
     @Get('webhooks')
     @ApiOperation({ summary: 'List webhook endpoints' })
     async getWebhooks(@Req() req: Request) {
         const userId = req.user as string;
-        return this.emailService.getWebhooks(userId);
+        const result = await this.emailService.getWebhooks(userId);
+        await this.trackUsage(req, 'list_webhooks', Array.isArray(result) ? result.length : 0);
+        return result;
     }
 
     @Delete('webhooks/:id')
     @ApiOperation({ summary: 'Delete webhook endpoint' })
     async deleteWebhook(@Param('id') id: string, @Req() req: Request) {
         const userId = req.user as string;
-        return this.emailService.deleteWebhook(userId, id);
+        const result = await this.emailService.deleteWebhook(userId, id);
+        await this.trackUsage(req, 'delete_webhook');
+        return result;
     }
 
     // ── Bulk Embeddings ───────────────────────────────────────────

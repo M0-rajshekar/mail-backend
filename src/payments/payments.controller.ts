@@ -79,6 +79,25 @@ export class PaymentsController {
         return await this.paymentsService.getCredits(userId);
     }
 
+    @Get('credit-ledger')
+    @ApiOperation({ summary: 'Get credit usage ledger' })
+    @ApiResponse({
+        status: 200,
+        description: 'Credit usage ledger retrieved successfully',
+    })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async getCreditLedger(
+        @Req() req: Request,
+        @Query('limit') limit = 100,
+        @Query('offset') offset = 0,
+    ) {
+        const userId = req.user;
+        if (!userId) {
+            throw new UnauthorizedException('User not authenticated');
+        }
+        return await this.paymentsService.getCreditLedger(userId, +limit, +offset);
+    }
+
     @Get('current-plan')
     @ApiOperation({ summary: 'Get current plan' })
     @ApiResponse({

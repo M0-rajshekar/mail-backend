@@ -272,6 +272,22 @@ model RateLimit {
   @@map("rate_limits")
 }
 
+model CreditUsageLog {
+  id          String   @id @default(cuid())
+  userId      String
+  toolName    String
+  credits     Float
+  description String?
+  metadata    Json?
+  source      String   @default("api") // api, mcp, sdk, frontend
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([toolName])
+  @@map("credit_usage_logs")
+}
+
 enum UserStatus {
   ACTIVE
   PAUSED

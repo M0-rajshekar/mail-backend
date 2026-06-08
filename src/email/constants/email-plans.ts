@@ -1,18 +1,14 @@
 /**
  * Email Subscription Plans Configuration
- * Based on competitor analysis (AgentMail.to)
+ * Aligned with SubscriptionTier enum: FREE | STANDARD | TEAM | PRO | ULTIMATE
  *
- * Competitor Pricing:
- * - Free: $0, 3 inboxes, 3,000 emails/month
- * - Developer: $20, 10 inboxes, 10,000 emails/month
- * - Startup: Custom, 150 inboxes, 150,000 emails/month
- * - Enterprise: Custom, unlimited
+ * Pricing model:
+ * - Inbound emails (Email Routing): Unlimited on all plans (Cloudflare handles this)
+ * - Outbound emails (Email Sending): Included quota per plan, overages $0.35 per 1,000
+ * - Cost basis: $0.35 per 1,000 outbound emails
  *
- * Our Pricing (more generous free tier):
- * - Free: $0, 5 inboxes, 5,000 emails/month, 2 webhooks
- * - Developer: $15, 15 inboxes, 15,000 emails/month, 10 webhooks
- * - Startup: $49, 100 inboxes, 100,000 emails/month, 50 webhooks
- * - Enterprise: $99, unlimited inboxes, unlimited emails, unlimited webhooks
+ * 100 Free users cost: 100 × 30 outbound = 3,000 emails = $1.05/month + ~$6 infra = ~$7/month
+ * 1 Standard customer ($15) covers all 100 free users with $8 profit.
  */
 
 export interface EmailPlanConfig {
@@ -23,7 +19,8 @@ export interface EmailPlanConfig {
     yearlyPrice: number;
     limits: {
         inboxes: number; // -1 = unlimited
-        emailsPerMonth: number; // -1 = unlimited
+        outboundEmailsPerMonth: number; // Outbound (sending) quota. -1 = unlimited
+        inboundEmailsPerMonth: number; // Always -1 (unlimited)
         emailsPerHour: number; // Per-inbox rate limit
         emailsPerDay: number; // Per-inbox rate limit
         webhooks: number; // -1 = unlimited
@@ -48,11 +45,12 @@ export const EMAIL_PLANS: Record<string, EmailPlanConfig> = {
         yearlyPrice: 0,
         limits: {
             inboxes: 5,
-            emailsPerMonth: 5000,
-            emailsPerHour: 20,
-            emailsPerDay: 100,
+            outboundEmailsPerMonth: 30,
+            inboundEmailsPerMonth: -1,
+            emailsPerHour: 10,
+            emailsPerDay: 30,
             webhooks: 2,
-            attachmentsPerEmail: 3,
+            attachmentsPerEmail: 2,
             maxAttachmentSize: 5,
             storageGB: 1,
             apiCallsPerMinute: 60,
@@ -62,25 +60,27 @@ export const EMAIL_PLANS: Record<string, EmailPlanConfig> = {
         },
         features: [
             '5 Email Inboxes',
-            '5,000 emails/month',
-            '20 emails/hour per inbox',
+            '30 outbound emails/month',
+            'Unlimited inbound emails',
+            '10 emails/hour per inbox',
             '2 Webhook endpoints',
-            '3 attachments per email',
+            '2 attachments per email',
             '5 MB attachment limit',
             '1 GB storage',
             'API access',
             'Community support',
         ],
     },
-    DEVELOPER: {
-        id: 'DEVELOPER',
-        name: 'Developer',
+    STANDARD: {
+        id: 'STANDARD',
+        name: 'Standard',
         description: 'For indie developers and small projects',
         monthlyPrice: 15,
         yearlyPrice: 150,
         limits: {
             inboxes: 15,
-            emailsPerMonth: 15000,
+            outboundEmailsPerMonth: 3000,
+            inboundEmailsPerMonth: -1,
             emailsPerHour: 50,
             emailsPerDay: 500,
             webhooks: 10,
@@ -94,7 +94,9 @@ export const EMAIL_PLANS: Record<string, EmailPlanConfig> = {
         },
         features: [
             '15 Email Inboxes',
-            '15,000 emails/month',
+            '3,000 outbound emails/month',
+            'Unlimited inbound emails',
+            '$0.35 per 1,000 extra outbound',
             '50 emails/hour per inbox',
             '10 Webhook endpoints',
             '5 attachments per email',
@@ -103,22 +105,23 @@ export const EMAIL_PLANS: Record<string, EmailPlanConfig> = {
             'Semantic search',
             '1 Custom domain',
             'API & MCP access',
-            'Priority email support',
+            'Priority support',
         ],
         isPopular: true,
     },
-    STARTUP: {
-        id: 'STARTUP',
-        name: 'Startup',
+    TEAM: {
+        id: 'TEAM',
+        name: 'Team',
         description: 'For growing teams and businesses',
-        monthlyPrice: 49,
-        yearlyPrice: 490,
+        monthlyPrice: 29,
+        yearlyPrice: 290,
         limits: {
-            inboxes: 100,
-            emailsPerMonth: 100000,
+            inboxes: 50,
+            outboundEmailsPerMonth: 12000,
+            inboundEmailsPerMonth: -1,
             emailsPerHour: 100,
             emailsPerDay: 2000,
-            webhooks: 50,
+            webhooks: 25,
             attachmentsPerEmail: 10,
             maxAttachmentSize: 25,
             storageGB: 25,
@@ -128,10 +131,12 @@ export const EMAIL_PLANS: Record<string, EmailPlanConfig> = {
             teamMembers: 5,
         },
         features: [
-            '100 Email Inboxes',
-            '100,000 emails/month',
+            '50 Email Inboxes',
+            '12,000 outbound emails/month',
+            'Unlimited inbound emails',
+            '$0.35 per 1,000 extra outbound',
             '100 emails/hour per inbox',
-            '50 Webhook endpoints',
+            '25 Webhook endpoints',
             '10 attachments per email',
             '25 MB attachment limit',
             '25 GB storage',
@@ -143,20 +148,60 @@ export const EMAIL_PLANS: Record<string, EmailPlanConfig> = {
             'Priority support',
         ],
     },
-    ENTERPRISE: {
-        id: 'ENTERPRISE',
-        name: 'Enterprise',
+    PRO: {
+        id: 'PRO',
+        name: 'Pro',
+        description: 'For power users and agencies',
+        monthlyPrice: 59,
+        yearlyPrice: 590,
+        limits: {
+            inboxes: 100,
+            outboundEmailsPerMonth: 35000,
+            inboundEmailsPerMonth: -1,
+            emailsPerHour: 200,
+            emailsPerDay: 5000,
+            webhooks: -1,
+            attachmentsPerEmail: 20,
+            maxAttachmentSize: 50,
+            storageGB: 100,
+            apiCallsPerMinute: 600,
+            semanticSearch: true,
+            customDomains: -1,
+            teamMembers: -1,
+        },
+        features: [
+            '100 Email Inboxes',
+            '35,000 outbound emails/month',
+            'Unlimited inbound emails',
+            '$0.35 per 1,000 extra outbound',
+            '200 emails/hour per inbox',
+            'Unlimited Webhooks',
+            '20 attachments per email',
+            '50 MB attachment limit',
+            '100 GB storage',
+            'Semantic search',
+            'Unlimited Custom domains',
+            'Unlimited Team members',
+            'API & MCP access',
+            'Webhooks & real-time',
+            'Priority support',
+        ],
+    },
+    ULTIMATE: {
+        id: 'ULTIMATE',
+        name: 'Ultimate',
         description: 'For large organizations with custom needs',
         monthlyPrice: 99,
         yearlyPrice: 990,
         limits: {
-            inboxes: -1,
-            emailsPerMonth: -1,
-            emailsPerHour: 200,
+            inboxes: 250,
+            outboundEmailsPerMonth: 100000,
+            inboundEmailsPerMonth: -1,
+            emailsPerHour: 500,
             emailsPerDay: 10000,
             webhooks: -1,
-            attachmentsPerEmail: 20,
-            maxAttachmentSize: 50,
+            attachmentsPerEmail: 50,
+            maxAttachmentSize: 100,
             storageGB: -1,
             apiCallsPerMinute: 1000,
             semanticSearch: true,
@@ -164,12 +209,14 @@ export const EMAIL_PLANS: Record<string, EmailPlanConfig> = {
             teamMembers: -1,
         },
         features: [
-            'Unlimited Inboxes',
-            'Unlimited emails/month',
-            '200 emails/hour per inbox',
+            '250 Email Inboxes',
+            '100,000 outbound emails/month',
+            'Unlimited inbound emails',
+            '$0.35 per 1,000 extra outbound',
+            '500 emails/hour per inbox',
             'Unlimited Webhooks',
-            '20 attachments per email',
-            '50 MB attachment limit',
+            '50 attachments per email',
+            '100 MB attachment limit',
             'Unlimited storage',
             'Semantic search',
             'Unlimited Custom domains',
@@ -240,7 +287,7 @@ export function getRateLimits(planId: string): {
     perDay: number;
 } {
     const plan = getEmailPlanConfig(planId);
-    if (!plan) return { perHour: 20, perDay: 100 };
+    if (!plan) return { perHour: 10, perDay: 30 };
     return {
         perHour: plan.limits.emailsPerHour,
         perDay: plan.limits.emailsPerDay,

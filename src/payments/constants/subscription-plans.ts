@@ -1,18 +1,17 @@
 /**
  * Subscription Plans Configuration
- * Email-focused plans matching AgentMail.to competitor
- * Plans: FREE | STANDARD | TEAM | PRO | ULTIMATE
+ * Email-focused plans: FREE | STANDARD | TEAM | PRO | ULTIMATE
  *
- * Competitor benchmark (AgentMail.to):
- * - Free: 3 inboxes, 3,000 emails/month
- * - Developer: $20, 10 inboxes, 10,000 emails/month
+ * Pricing model:
+ * - Inbound emails (Email Routing): Unlimited on all plans (handled by Cloudflare)
+ * - Outbound emails (Email Sending): Included quota per plan, overages $0.35 per 1,000
+ * - Cost basis: $0.35 per 1,000 outbound emails
  *
- * Our plans (more generous free tier, lower prices):
- * - Free: 5 inboxes, 5,000 emails/month
- * - Standard: $9, 15 inboxes, 15,000 emails/month
- * - Team: $29, 50 inboxes, 50,000 emails/month
- * - Pro: $59, 150 inboxes, 150,000 emails/month
- * - Ultimate: $99, unlimited inboxes, unlimited emails
+ * Margin calculation:
+ * - STANDARD ($15): 3,000 outbound = $1.05 cost → 93% margin
+ * - TEAM ($29): 12,000 outbound = $4.20 cost → 85.5% margin
+ * - PRO ($59): 35,000 outbound = $12.25 cost → 79.2% margin
+ * - ULTIMATE ($99): 100,000 outbound = $35 cost → 64.6% margin
  */
 
 export interface SubscriptionPlanConfig {
@@ -20,7 +19,8 @@ export interface SubscriptionPlanConfig {
     monthlyPrice: number;
     yearlyPrice: number;
     maxInboxes: number; // -1 = unlimited
-    emailsPerMonth: number; // -1 = unlimited
+    outboundEmailsPerMonth: number; // Outbound (sending) quota. -1 = unlimited
+    inboundEmailsPerMonth: number; // Always -1 (unlimited) for all plans
     emailsPerHour: number; // per-inbox rate limit
     emailsPerDay: number; // per-inbox rate limit
     maxWebhooks: number; // -1 = unlimited
@@ -40,11 +40,12 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         monthlyPrice: 0,
         yearlyPrice: 0,
         maxInboxes: 5,
-        emailsPerMonth: 5000,
-        emailsPerHour: 20,
-        emailsPerDay: 100,
+        outboundEmailsPerMonth: 30,
+        inboundEmailsPerMonth: -1,
+        emailsPerHour: 10,
+        emailsPerDay: 30,
         maxWebhooks: 2,
-        maxAttachmentsPerEmail: 3,
+        maxAttachmentsPerEmail: 2,
         maxAttachmentSizeMB: 5,
         storageGB: 1,
         apiCallsPerMinute: 60,
@@ -53,10 +54,11 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         description: 'Try it out — perfect for hobby projects',
         features: [
             '5 Email Inboxes',
-            '5,000 emails / month',
-            '20 emails/hour per inbox',
+            '30 outbound emails / month',
+            'Unlimited inbound emails',
+            '10 emails/hour per inbox',
             '2 Webhook endpoints',
-            '3 attachments per email',
+            '2 attachments per email',
             '5 MB attachment limit',
             '1 GB storage',
             'API access',
@@ -65,10 +67,11 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
     },
     STANDARD: {
         name: 'Standard',
-        monthlyPrice: 9,
-        yearlyPrice: 83.88,
+        monthlyPrice: 15,
+        yearlyPrice: 150,
         maxInboxes: 15,
-        emailsPerMonth: 15000,
+        outboundEmailsPerMonth: 3000,
+        inboundEmailsPerMonth: -1,
         emailsPerHour: 50,
         emailsPerDay: 500,
         maxWebhooks: 10,
@@ -81,7 +84,9 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         description: 'For developers getting started',
         features: [
             '15 Email Inboxes',
-            '15,000 emails / month',
+            '3,000 outbound emails / month',
+            'Unlimited inbound emails',
+            '$0.35 per 1,000 extra outbound',
             '50 emails/hour per inbox',
             '10 Webhook endpoints',
             '5 attachments per email',
@@ -90,7 +95,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
             'Semantic search',
             '1 Custom domain',
             'API & MCP access',
-            'Email support',
+            'Priority support',
         ],
     },
     TEAM: {
@@ -98,7 +103,8 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         monthlyPrice: 29,
         yearlyPrice: 290,
         maxInboxes: 50,
-        emailsPerMonth: 50000,
+        outboundEmailsPerMonth: 12000,
+        inboundEmailsPerMonth: -1,
         emailsPerHour: 100,
         emailsPerDay: 2000,
         maxWebhooks: 25,
@@ -111,7 +117,9 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         description: 'For growing teams and businesses',
         features: [
             '50 Email Inboxes',
-            '50,000 emails / month',
+            '12,000 outbound emails / month',
+            'Unlimited inbound emails',
+            '$0.35 per 1,000 extra outbound',
             '100 emails/hour per inbox',
             '25 Webhook endpoints',
             '10 attachments per email',
@@ -128,8 +136,9 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         name: 'Pro',
         monthlyPrice: 59,
         yearlyPrice: 590,
-        maxInboxes: 150,
-        emailsPerMonth: 150000,
+        maxInboxes: 100,
+        outboundEmailsPerMonth: 35000,
+        inboundEmailsPerMonth: -1,
         emailsPerHour: 200,
         emailsPerDay: 5000,
         maxWebhooks: -1,
@@ -141,8 +150,10 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         customDomains: -1,
         description: 'For power users and agencies',
         features: [
-            '150 Email Inboxes',
-            '150,000 emails / month',
+            '100 Email Inboxes',
+            '35,000 outbound emails / month',
+            'Unlimited inbound emails',
+            '$0.35 per 1,000 extra outbound',
             '200 emails/hour per inbox',
             'Unlimited Webhooks',
             '20 attachments per email',
@@ -159,8 +170,9 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         name: 'Ultimate',
         monthlyPrice: 99,
         yearlyPrice: 990,
-        maxInboxes: -1,
-        emailsPerMonth: -1,
+        maxInboxes: 250,
+        outboundEmailsPerMonth: 100000,
+        inboundEmailsPerMonth: -1,
         emailsPerHour: 500,
         emailsPerDay: 10000,
         maxWebhooks: -1,
@@ -172,8 +184,10 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         customDomains: -1,
         description: 'For large organizations',
         features: [
-            'Unlimited Inboxes',
-            'Unlimited emails / month',
+            '250 Email Inboxes',
+            '100,000 outbound emails / month',
+            'Unlimited inbound emails',
+            '$0.35 per 1,000 extra outbound',
             '500 emails/hour per inbox',
             'Unlimited Webhooks',
             '50 attachments per email',
@@ -220,13 +234,13 @@ export function getInboxLimit(tier: string): number {
 }
 
 /**
- * Get emails per month limit
+ * Get outbound emails per month limit
  * Returns -1 for unlimited
  */
 export function getEmailsPerMonthLimit(tier: string): number {
     const plan = getSubscriptionPlanConfig(tier);
-    if (!plan) return 5000;
-    return plan.emailsPerMonth;
+    if (!plan) return 30;
+    return plan.outboundEmailsPerMonth;
 }
 
 /**
@@ -234,7 +248,7 @@ export function getEmailsPerMonthLimit(tier: string): number {
  */
 export function getEmailsPerHourLimit(tier: string): number {
     const plan = getSubscriptionPlanConfig(tier);
-    if (!plan) return 20;
+    if (!plan) return 10;
     return plan.emailsPerHour;
 }
 
@@ -243,7 +257,7 @@ export function getEmailsPerHourLimit(tier: string): number {
  */
 export function getEmailsPerDayLimit(tier: string): number {
     const plan = getSubscriptionPlanConfig(tier);
-    if (!plan) return 100;
+    if (!plan) return 30;
     return plan.emailsPerDay;
 }
 
@@ -325,13 +339,13 @@ export function canConnectAccount(tier: string, currentCount: number): boolean {
  */
 export function getPostsPerMonth(tier: string): number {
     const plan = getSubscriptionPlanConfig(tier);
-    if (!plan) return 5000;
-    return plan.emailsPerMonth;
+    if (!plan) return 30;
+    return plan.outboundEmailsPerMonth;
 }
 
 /**
  * Get subscription credits based on tier and billing period.
- * Maps emailsPerMonth to credits (unlimited = 999999).
+ * Maps outboundEmailsPerMonth to credits (unlimited = 999999).
  */
 export function getSubscriptionCredits(
     tier: string,
@@ -339,7 +353,7 @@ export function getSubscriptionCredits(
 ): number {
     const plan = getSubscriptionPlanConfig(tier);
     if (!plan) return 0;
-    const monthly = plan.emailsPerMonth === -1 ? 999999 : plan.emailsPerMonth;
+    const monthly = plan.outboundEmailsPerMonth === -1 ? 999999 : plan.outboundEmailsPerMonth;
     return billingPeriod === 'YEARLY' ? monthly * 12 : monthly;
 }
 
@@ -351,9 +365,9 @@ export function getPlansBySegment(): Record<string, SubscriptionPlanConfig> {
 }
 
 // Legacy constants retained for any residual imports
-export const MONTHLY_SUBSCRIPTION_BUILDER = 9; // STANDARD
+export const MONTHLY_SUBSCRIPTION_BUILDER = 15; // STANDARD
 export const MONTHLY_BUILDER_CREDITS = 0;
-export const YEARLY_SUBSCRIPTION_BUILDER = 83.88;
+export const YEARLY_SUBSCRIPTION_BUILDER = 150;
 export const YEARLY_BUILDER_CREDITS = 0;
 
 export const MONTHLY_SUBSCRIPTION_ARCHITECT = 59; // PRO

@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { jwtVerify, JWTVerifyResult } from 'jose';
 import { NextFunction, Request, Response } from 'express';
 import { PrismaService } from '../services/prisma.service';
+import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationService';
 import { v4 as uuid } from 'uuid';
 
 // Extend Express Request type to include user and apiKey
@@ -27,6 +28,7 @@ export class AuthMiddleware implements NestMiddleware {
     constructor(
         private readonly configService: ConfigService,
         private readonly prisma: PrismaService,
+        private readonly apiKeyValidation: ApiKeyValidationService,
     ) {}
 
     async use(req: Request, res: Response, next: NextFunction) {
@@ -125,6 +127,12 @@ export class AuthMiddleware implements NestMiddleware {
 
             // Attach to request
             req.user = user.id;
+
+            // Attach API key so controllers can deduct credits for JWT users too
+            const apiKey = await this.apiKeyValidation.findApiKeyByUserId(user.id);
+            if (apiKey) {
+                req.apiKey = apiKey;
+            }
 
             // Secure headers
             res.setHeader('X-Content-Type-Options', 'nosniff');
