@@ -271,6 +271,42 @@ export class McpController {
                                 },
                             },
                             {
+                                name: 'email.create_inbox',
+                                description: 'Create a new email inbox',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        emailAddress: {
+                                            type: 'string',
+                                            description: 'Email address for the inbox (e.g., agent@yourdomain.com)',
+                                        },
+                                        displayName: {
+                                            type: 'string',
+                                            description: 'Display name for the inbox',
+                                        },
+                                        customDomainId: {
+                                            type: 'string',
+                                            description: 'Custom domain ID (omit for default domain)',
+                                        },
+                                    },
+                                    required: ['emailAddress'],
+                                },
+                            },
+                            {
+                                name: 'email.delete_inbox',
+                                description: 'Delete an email inbox',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        inboxId: {
+                                            type: 'string',
+                                            description: 'Inbox ID or email address to delete',
+                                        },
+                                    },
+                                    required: ['inboxId'],
+                                },
+                            },
+                            {
                                 name: 'email.search_emails',
                                 description: 'Search emails by keyword',
                                 inputSchema: {
@@ -394,6 +430,26 @@ export class McpController {
                         case 'email.list_inboxes':
                             result = await this.emailService.getInboxes(userId);
                             break;
+
+                        case 'email.create_inbox': {
+                            result = await this.emailService.createInbox(
+                                userId,
+                                {
+                                    emailAddress: args.emailAddress,
+                                    displayName: args.displayName,
+                                    customDomainId: args.customDomainId,
+                                },
+                            );
+                            break;
+                        }
+
+                        case 'email.delete_inbox': {
+                            result = await this.emailService.deleteInbox(
+                                userId,
+                                args.inboxId,
+                            );
+                            break;
+                        }
 
                         case 'email.get_messages': {
                             const inbox =
