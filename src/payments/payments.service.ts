@@ -1278,9 +1278,7 @@ export class PaymentsService {
             // Determine user's rate limit tier
             let rateLimitTier: RateLimitTier = 'FREE';
 
-            if (user.TopUp && user.TopUp.status === 'ACTIVE') {
-                rateLimitTier = 'TOP_UP';
-            } else if (user.Subscription && user.Subscription.length > 0) {
+            if (user.Subscription && user.Subscription.length > 0) {
                 const subscription = user.Subscription[0];
                 rateLimitTier = subscription.subscriptionPlan as RateLimitTier;
             }

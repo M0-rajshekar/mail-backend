@@ -35,6 +35,7 @@ export class AuthMiddleware implements NestMiddleware {
         // Skip auth for excluded paths (belt-and-suspenders with module exclude)
         const skipPaths = [
             '/',
+            '/health',
             '/payments/webhook/edge-true/confirm-payin-created',
             '/payments/webhook/edge-true/confirm-payin-completed',
             '/payments/webhook/social/confirm-payin-completed',
@@ -75,6 +76,28 @@ export class AuthMiddleware implements NestMiddleware {
                     'Missing authorization header and no valid cookie token',
                 );
                 throw new UnauthorizedException('Missing authorization header');
+            }
+
+            // If token looks like an API key (sk_ prefix), validate via ApiKeyValidationService
+            if (token.startsWith('sk_')) {
+                try {
+                    const validated = await this.apiKeyValidation.validateApiKeyAndBalance(
+                        token,
+                        0,
+                        'list_inboxes',
+                    );
+                    req.user = validated.userId;
+                    req.apiKey = token;
+                    this.logger.debug(`API key auth success for user ${validated.userId}`);
+                    res.setHeader('X-Content-Type-Options', 'nosniff');
+                    return next();
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    this.logger.warn(`API key validation failed: ${msg}`);
+                    throw err instanceof UnauthorizedException
+                        ? err
+                        : new UnauthorizedException('Invalid or expired API key');
+                }
             }
 
             // Get secret
