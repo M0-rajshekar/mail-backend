@@ -9,6 +9,7 @@ import { CustomDomainService } from './custom-domain.service';
 import { CloudflareEmailService } from './cloudflare-email.service';
 import { CloudflareZonesService } from './cloudflare-zones.service';
 import { AttachmentStorageService } from './attachment-storage.service';
+import { AttachmentExtractionService } from './attachment-extraction.service';
 import { WebhookDeliveryService } from './webhook-delivery.service';
 import { EmailParserService } from './email-parser.service';
 import { EmbeddingService } from './embedding.service';
@@ -23,6 +24,7 @@ import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationServi
         CloudflareEmailService,
         CloudflareZonesService,
         AttachmentStorageService,
+        AttachmentExtractionService,
         WebhookDeliveryService,
         EmailParserService,
         EmbeddingService,
@@ -36,6 +38,7 @@ import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationServi
         EmailGateway,
         CloudflareEmailService,
         AttachmentStorageService,
+        AttachmentExtractionService,
         WebhookDeliveryService,
         EmailParserService,
         EmbeddingService,

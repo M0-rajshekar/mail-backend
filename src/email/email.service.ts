@@ -14,6 +14,7 @@ import {
 } from 'generated/prisma';
 import { CloudflareEmailService } from './cloudflare-email.service';
 import { AttachmentStorageService } from './attachment-storage.service';
+import { AttachmentExtractionService } from './attachment-extraction.service';
 import { WebhookDeliveryService } from './webhook-delivery.service';
 import { EmailParserService } from './email-parser.service';
 import { EmbeddingService } from './embedding.service';
@@ -71,6 +72,7 @@ export class EmailService {
         private readonly prisma: PrismaService,
         private readonly cloudflareEmail: CloudflareEmailService,
         private readonly attachmentStorage: AttachmentStorageService,
+        private readonly attachmentExtraction: AttachmentExtractionService,
         private readonly webhookDelivery: WebhookDeliveryService,
         private readonly emailParser: EmailParserService,
         private readonly embeddingService: EmbeddingService,
@@ -521,7 +523,7 @@ export class EmailService {
 
         const messageId = crypto.randomUUID();
 
-        // Store attachments
+        // Store attachments and extract text content
         const storedAttachments: any[] = [];
         if (parsed.attachments && parsed.attachments.length > 0) {
             for (const att of parsed.attachments) {
@@ -536,7 +538,26 @@ export class EmailService {
                         size: att.size,
                     },
                 );
-                storedAttachments.push(stored);
+
+                // Extract text content for LLM consumption
+                        let extractedText: string | null = null;
+                        if (this.attachmentExtraction.isExtractable(att.mimeType, att.filename || '')) {
+                            try {
+                                const extracted = await this.attachmentExtraction.extractAttachment(
+                                    att.filename || 'untitled',
+                                    att.mimeType,
+                                    Buffer.from(att.content),
+                                );
+                                extractedText = extracted.extractedText;
+                            } catch (err) {
+                                this.logger.warn(`Attachment extraction failed for ${att.filename}: ${err.message}`);
+                            }
+                        }
+
+                storedAttachments.push({
+                    ...stored,
+                    extractedText,
+                });
             }
         }
 
@@ -574,6 +595,7 @@ export class EmailService {
                     mimetype: att.mimetype,
                     size: att.size,
                     s3Key: att.s3Key,
+                    extractedText: att.extractedText || null,
                 })),
                 metadata: {
                     headers: parsed.headers,
