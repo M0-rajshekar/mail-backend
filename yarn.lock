@@ -1390,14 +1390,6 @@
   resolved "https://registry.npmjs.org/@msgpackr-extract/msgpackr-extract-win32-x64/-/msgpackr-extract-win32-x64-3.0.4.tgz"
   integrity sha512-CmCXPQrkbwExx3j946/PtHWHbYJiCRBRDl4BlkRQcJB/YOwQxJRTpoo7aTsortjgoJ1x7opzTSxn7C+ASSLVjQ==
 
-pdf-parse@^1.1.1:
-  version "1.1.1"
-  resolved "https://registry.npmjs.org/pdf-parse/-/pdf-parse-1.1.1.tgz"
-  integrity sha512-v6ZJ/efsBpGrGGknjtq9J/oC8tZWq0KHG5EJfdjCAsJhRmXWHFF2rt6QRNynQhUXf2/XUOrXmfh4fklF7dz9N+w==
-  dependencies:
-    debug "^3.1.0"
-    node-ensure "^0.0.0"
-
 "@nestjs/axios@^4.0.0":
   version "4.0.1"
   resolved "https://registry.npmjs.org/@nestjs/axios/-/axios-4.0.1.tgz"
@@ -7885,7 +7877,7 @@ pause@0.0.1:
 pdf-parse@^1.1.1:
   version "1.1.1"
   resolved "https://registry.npmjs.org/pdf-parse/-/pdf-parse-1.1.1.tgz"
-  integrity sha512-v6ZJ/efsBpGrGGknjtq9J/oC8tZWq0KHG5EJfdjCAsJhRmXWHFF2rt6QRNynQhUXf2/XUOrXmfh4fklF7dz9N+w==
+  integrity sha512-v6ZJ/efsBpGrGGknjtq9J/oC8tZWq0KWL5vQrk2GlzLEQPUDB1ex+13Rmidl1neNN358Jn9EHZw5y07FFtaC7A==
   dependencies:
     debug "^3.1.0"
     node-ensure "^0.0.0"
