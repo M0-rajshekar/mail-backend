@@ -1,9 +1,9 @@
 # Stage 1: Builder
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 
-# Install only the necessary build dependencies
-RUN apk add --no-cache python3 build-base
+# Install build dependencies
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Layer optimization: Copy and install dependencies first
 COPY package.json yarn.lock ./
@@ -22,7 +22,7 @@ COPY src ./src
 RUN yarn build
 
 # Stage 2: Production Dependencies
-FROM node:20-alpine AS deps
+FROM node:20-slim AS deps
 WORKDIR /app
 
 # Copy package files
@@ -30,21 +30,21 @@ COPY package.json yarn.lock ./
 COPY prisma ./prisma
 
 # Install only production dependencies with minimal size
-RUN apk add --no-cache python3 build-base && \
+RUN apt-get update && apt-get install -y python3 make g++ && \
     yarn install --frozen-lockfile --network-timeout 600000 --network-concurrency 1 --production --ignore-optional && \
     yarn cache clean && \
-    apk del python3 build-base
+    apt-get purge -y python3 make g++ && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Stage 3: Runner (minimal image)
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 # Set production environment
 ENV NODE_ENV=production
 
 # Create a non-root user with least privileges
-RUN addgroup -S nodejs && \
-    adduser -S nestjs -G nodejs && \
+RUN groupadd -r nodejs && \
+    useradd -r -g nodejs nestjs && \
     chown -R nestjs:nodejs /app
 
 # Copy only what's needed to run the application
