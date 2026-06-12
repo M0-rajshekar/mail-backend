@@ -3,7 +3,7 @@ FROM node:20-slim AS builder
 WORKDIR /app
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 make g++ openssl && rm -rf /var/lib/apt/lists/*
 
 # Layer optimization: Copy and install dependencies first
 COPY package.json yarn.lock ./
@@ -30,7 +30,7 @@ COPY package.json yarn.lock ./
 COPY prisma ./prisma
 
 # Install only production dependencies with minimal size
-RUN apt-get update && apt-get install -y python3 make g++ && \
+RUN apt-get update && apt-get install -y python3 make g++ openssl && \
     yarn install --frozen-lockfile --network-timeout 600000 --network-concurrency 1 --production --ignore-optional && \
     yarn cache clean && \
     apt-get purge -y python3 make g++ && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
@@ -41,6 +41,9 @@ WORKDIR /app
 
 # Set production environment
 ENV NODE_ENV=production
+
+# Install OpenSSL required by Prisma
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user with least privileges
 RUN groupadd -r nodejs && \
