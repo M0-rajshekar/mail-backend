@@ -45,12 +45,12 @@ ENV NODE_ENV=production
 # Install runtime libraries required for canvas rendering (pdfjs-dist dependency)
 RUN apt-get update && apt-get install -y \
     libcairo2 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
+    libpango1.0-0 \
+    libpangocairo1.0-0 \
     libjpeg62-turbo \
     libgif7 \
     libpng16-16 \
-    libwebp6 \
+    libwebp7 \
     librsvg2-2 \
     libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
