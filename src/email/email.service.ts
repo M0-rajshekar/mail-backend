@@ -56,6 +56,13 @@ export interface SendEmailDto {
     inReplyTo?: string;
     references?: string[];
     threadId?: string;
+    attachments?: {
+        content: string;
+        filename: string;
+        type: string;
+        disposition: 'attachment' | 'inline';
+        contentId?: string;
+    }[];
 }
 
 export interface RegisterWebhookDto {
@@ -414,6 +421,13 @@ export class EmailService {
                     Object.keys(threadingHeaders).length > 0
                         ? threadingHeaders
                         : undefined,
+                attachments: dto.attachments?.map((att) => ({
+                    content: att.content,
+                    filename: att.filename,
+                    type: att.type,
+                    disposition: att.disposition,
+                    ...(att.contentId ? { contentId: att.contentId } : {}),
+                })),
             });
             this.logger.log(`Email sent successfully: ${result.messageId}`);
         } catch (error: any) {

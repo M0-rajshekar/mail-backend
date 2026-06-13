@@ -733,6 +733,128 @@ export class CloudflareZonesService {
     }
 
     /**
+     * Enable Email Sending for a domain (outbound email)
+     * 
+     * Cloudflare API: POST /zones/{zone_id}/email/sending/subdomains
+     * This creates a sending subdomain and auto-enables zone-level sending.
+     * 
+     * Docs: https://developers.cloudflare.com/api/resources/email_sending/subresources/subdomains/methods/create/
+     */
+    async enableEmailSending(domain: string): Promise<{
+        success: boolean;
+        subdomain?: string;
+        tag?: string;
+        dkimSelector?: string;
+        errors: string[];
+    }> {
+        const errors: string[] = [];
+        const zoneId = await this.getZoneId(domain);
+
+        if (!zoneId) {
+            errors.push(`Zone not found for domain "${domain}"`);
+            return { success: false, errors };
+        }
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.post<CfResponse<any>>(
+                    `${this.baseUrl}/zones/${zoneId}/email/sending/subdomains`,
+                    { name: domain },
+                    { headers: this.getHeaders() },
+                ),
+            );
+
+            if (!response.data.success) {
+                const apiErrors = response.data.errors || [];
+                const alreadyExists = apiErrors.some(
+                    (e) => e.code === 2040 || e.message?.includes('already exists'),
+                );
+
+                if (alreadyExists) {
+                    this.logger.log(`Email Sending already enabled for ${domain}`);
+                    // Fetch existing subdomain details
+                    try {
+                        const listResponse = await firstValueFrom(
+                            this.httpService.get<CfResponse<any[]>>(
+                                `${this.baseUrl}/zones/${zoneId}/email/sending/subdomains`,
+                                { headers: this.getHeaders() },
+                            ),
+                        );
+                        const existing = listResponse.data.result?.find(
+                            (s) => s.name === domain,
+                        );
+                        if (existing) {
+                            return {
+                                success: true,
+                                subdomain: existing.name,
+                                tag: existing.tag,
+                                dkimSelector: existing.dkim_selector,
+                                errors: [],
+                            };
+                        }
+                    } catch (e) {
+                        // Ignore, fall through to error
+                    }
+                }
+
+                const errorMsg = apiErrors
+                    .map((e) => `${e.code}: ${e.message}`)
+                    .join('; ');
+                errors.push(`Failed to enable Email Sending: ${errorMsg}`);
+                this.logger.error(`Email Sending enable failed for ${domain}: ${errorMsg}`);
+                return { success: false, errors };
+            }
+
+            const result = response.data.result;
+            this.logger.log(
+                `Email Sending enabled for ${domain}: tag=${result.tag}, dkim=${result.dkim_selector}`,
+            );
+
+            return {
+                success: true,
+                subdomain: result.name,
+                tag: result.tag,
+                dkimSelector: result.dkim_selector,
+                errors,
+            };
+        } catch (error: any) {
+            const msg = error.response?.data?.errors?.[0]?.message || error.message;
+            errors.push(`API error: ${msg}`);
+            this.logger.error(`Failed to enable Email Sending for ${domain}: ${msg}`);
+            return { success: false, errors };
+        }
+    }
+
+    /**
+     * Check if Email Sending is enabled for a domain
+     */
+    async isEmailSendingEnabled(domain: string): Promise<boolean> {
+        const zoneId = await this.getZoneId(domain);
+        if (!zoneId) return false;
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get<CfResponse<any[]>>(
+                    `${this.baseUrl}/zones/${zoneId}/email/sending/subdomains`,
+                    { headers: this.getHeaders() },
+                ),
+            );
+
+            if (!response.data.success) return false;
+
+            const subdomains = response.data.result || [];
+            return subdomains.some(
+                (s) => s.name === domain && s.enabled === true,
+            );
+        } catch (error: any) {
+            this.logger.debug(
+                `Could not check email sending status for ${domain}: ${error.message}`,
+            );
+            return false;
+        }
+    }
+
+    /**
      * Cleanup: Remove a domain's email routing setup
      */
     async removeDomainSetup(domain: string): Promise<{

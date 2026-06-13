@@ -31,7 +31,9 @@ import {
     IsArray,
     IsNotEmpty,
     ArrayMinSize,
+    ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 
 class CreateInboxDto {
@@ -51,6 +53,29 @@ class CreateInboxDto {
     @IsOptional()
     @IsString()
     customDomainId?: string;
+}
+
+class AttachmentDto {
+    @ApiProperty({ description: 'Base64-encoded file content' })
+    @IsString()
+    content: string;
+
+    @ApiProperty({ description: 'Filename' })
+    @IsString()
+    filename: string;
+
+    @ApiProperty({ description: 'MIME type (e.g., application/pdf, image/png)' })
+    @IsString()
+    type: string;
+
+    @ApiProperty({ description: 'Disposition: attachment or inline', enum: ['attachment', 'inline'] })
+    @IsString()
+    disposition: 'attachment' | 'inline';
+
+    @ApiPropertyOptional({ description: 'Content ID for inline attachments' })
+    @IsOptional()
+    @IsString()
+    contentId?: string;
 }
 
 class SendEmailDto {
@@ -86,6 +111,13 @@ class SendEmailDto {
     @IsArray()
     @IsString({ each: true })
     bcc?: string[];
+
+    @ApiPropertyOptional({ description: 'Attachments', type: [AttachmentDto] })
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => AttachmentDto)
+    attachments?: AttachmentDto[];
 }
 
 class RegisterWebhookDto {

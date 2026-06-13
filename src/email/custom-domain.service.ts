@@ -529,12 +529,27 @@ export class CustomDomainService {
             },
         });
 
+        // Step 5: Enable Email Sending (outbound) for this domain
+        steps.push('Enabling Email Sending (outbound)...');
+        const sendingResult = await this.cloudflareZones.enableEmailSending(
+            domain.domain,
+        );
+        if (sendingResult.success) {
+            steps.push(
+                `Email Sending enabled: ${sendingResult.subdomain} (DKIM: ${sendingResult.dkimSelector})`,
+            );
+        } else {
+            steps.push(
+                `Email Sending setup skipped: ${sendingResult.errors.join('; ')}`,
+            );
+        }
+
         this.logger.log(`Domain verified: ${domain.domain} for user ${userId}`);
 
         return {
             verified: true,
             message:
-                'Domain verified and email routing configured. You can now create inboxes using this domain.',
+                'Domain verified, email routing configured, and email sending enabled. You can now create inboxes and send emails from this domain.',
             steps,
         };
     }
