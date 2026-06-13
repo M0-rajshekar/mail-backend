@@ -42,13 +42,25 @@ export class AttachmentStorageService {
             this.configService.get<string>('S3_BUCKET') ||
             'agentmail-attachments';
 
-        // Support both AWS S3 and Cloudflare R2
+        // Support AWS S3, Cloudflare R2, and DigitalOcean Spaces.
+        // Env vars use the S3_* convention in this project; fall back to AWS_*.
         const endpoint = this.configService.get<string>('S3_ENDPOINT');
-        const region = this.configService.get<string>('AWS_REGION') || 'auto';
-        const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
-        const secretAccessKey = this.configService.get<string>(
-            'AWS_SECRET_ACCESS_KEY',
-        );
+        const region =
+            this.configService.get<string>('S3_REGION') ||
+            this.configService.get<string>('AWS_REGION') ||
+            'auto';
+        const accessKeyId =
+            this.configService.get<string>('S3_ACCESS_KEY_ID') ||
+            this.configService.get<string>('AWS_ACCESS_KEY_ID');
+        const secretAccessKey =
+            this.configService.get<string>('S3_SECRET_ACCESS_KEY') ||
+            this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
+
+        if (!accessKeyId || !secretAccessKey) {
+            this.logger.warn(
+                'S3 credentials not found (S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY). Attachment uploads will fail.',
+            );
+        }
 
         this.s3Client = new S3Client({
             region,

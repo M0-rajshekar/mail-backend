@@ -537,36 +537,57 @@ export class EmailService {
 
         const messageId = crypto.randomUUID();
 
-        // Store attachments and extract text content
+        // Store attachments and extract text content.
+        // IMPORTANT: a failure storing an attachment (e.g. S3/R2 not configured)
+        // must NOT drop the whole inbound email. We log, keep the attachment
+        // metadata (without an s3Key), and still persist the message.
         const storedAttachments: any[] = [];
         if (parsed.attachments && parsed.attachments.length > 0) {
             for (const att of parsed.attachments) {
                 const attId = crypto.randomUUID();
-                const stored = await this.attachmentStorage.storeAttachment(
-                    messageId,
-                    attId,
-                    {
-                        filename: att.filename || 'untitled',
-                        contentType: att.mimeType,
-                        content: att.content,
-                        size: att.size,
-                    },
-                );
 
-                // Extract text content for LLM consumption
-                        let extractedText: string | null = null;
-                        if (this.attachmentExtraction.isExtractable(att.mimeType, att.filename || '')) {
-                            try {
-                                const extracted = await this.attachmentExtraction.extractAttachment(
-                                    att.filename || 'untitled',
-                                    att.mimeType,
-                                    Buffer.from(att.content),
-                                );
-                                extractedText = extracted.extractedText;
-                            } catch (err) {
-                                this.logger.warn(`Attachment extraction failed for ${att.filename}: ${err.message}`);
-                            }
-                        }
+                // Extract text content for LLM consumption (from in-memory bytes;
+                // does not depend on storage succeeding).
+                let extractedText: string | null = null;
+                if (this.attachmentExtraction.isExtractable(att.mimeType, att.filename || '')) {
+                    try {
+                        const extracted = await this.attachmentExtraction.extractAttachment(
+                            att.filename || 'untitled',
+                            att.mimeType,
+                            Buffer.from(att.content),
+                        );
+                        extractedText = extracted.extractedText;
+                    } catch (err) {
+                        this.logger.warn(`Attachment extraction failed for ${att.filename}: ${err.message}`);
+                    }
+                }
+
+                let stored: any;
+                try {
+                    stored = await this.attachmentStorage.storeAttachment(
+                        messageId,
+                        attId,
+                        {
+                            filename: att.filename || 'untitled',
+                            contentType: att.mimeType,
+                            content: att.content,
+                            size: att.size,
+                        },
+                    );
+                } catch (err: any) {
+                    this.logger.warn(
+                        `Attachment storage failed for ${att.filename} (email still saved): ${err.message}`,
+                    );
+                    // Preserve metadata even though the binary wasn't stored.
+                    stored = {
+                        id: attId,
+                        email_id: messageId,
+                        filename: att.filename || 'untitled',
+                        mimetype: att.mimeType,
+                        size: att.size,
+                        s3Key: null,
+                    };
+                }
 
                 storedAttachments.push({
                     ...stored,
