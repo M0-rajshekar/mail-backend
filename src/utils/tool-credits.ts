@@ -58,7 +58,10 @@ export type ToolName =
     | 'get_inbox'
     | 'delete_inbox'
     | 'list_messages'
-    | 'get_message';
+    | 'get_message'
+    | 'get_email_stats'
+    | 'search_emails'
+    | 'semantic_search';
 
 type ToolCredits = Record<ToolName, number>;
 
@@ -115,16 +118,20 @@ export const toolCredits: ToolCredits = {
     list_broadcasts: 1,
     create_broadcast: 3,
     send_broadcast: 5,
-    // Email
+    // Email — only billable actions cost credits; reads/views are free
     create_inbox: 1,
     send_email: 1,
-    list_inboxes: 1,
-    get_inbox: 1,
-    delete_inbox: 1,
-    list_messages: 1,
-    get_message: 1,
+    list_inboxes: 0,
+    get_inbox: 0,
+    delete_inbox: 0,
+    list_messages: 0,
+    get_message: 0,
+    get_email_stats: 0,
+    search_emails: 0,
+    semantic_search: 0,
 };
 
 export function getToolCredits(toolName: string): number {
-    return toolCredits[toolName as ToolName] || 1;
+    // Use ?? not || so an explicit 0 (free read action) is honored.
+    return toolCredits[toolName as ToolName] ?? 1;
 }

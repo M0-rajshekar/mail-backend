@@ -22,7 +22,7 @@ export class ApiKeyGuard implements CanActivate {
             'GET /email/inboxes/:id': 'get_inbox',
             'GET /email/inboxes/:id/messages': 'list_messages',
             'GET /email/messages/:id': 'get_message',
-            'GET /email/stats': 'get_analytics',
+            'GET /email/stats': 'get_email_stats',
         };
         return map[`${method} ${path}`] || 'list_inboxes';
     }

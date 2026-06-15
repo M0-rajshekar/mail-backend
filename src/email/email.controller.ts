@@ -234,7 +234,7 @@ export class EmailController {
     async getStats(@Req() req: Request) {
         const userId = req.user as string;
         const result = await this.emailService.getStats(userId);
-        await this.trackUsage(req, 'get_analytics');
+        await this.trackUsage(req, 'get_email_stats');
         return result;
     }
 
