@@ -923,6 +923,30 @@ export class EmailService {
         return message;
     }
 
+    async getAttachmentDownloadUrl(
+        userId: string,
+        messageId: string,
+        attachmentId: string,
+    ) {
+        const message = await this.getMessage(userId, messageId);
+        const attachments = (message.attachments as any[]) || [];
+        const att = attachments.find((a: any) => a.id === attachmentId);
+
+        if (!att) throw new NotFoundException('Attachment not found');
+        if (!att.s3Key)
+            throw new BadRequestException(
+                'Attachment file is not available (storage failed at receive time)',
+            );
+
+        const url = await this.attachmentStorage.getPresignedUrl(att.s3Key);
+        return {
+            url,
+            filename: att.filename,
+            mimetype: att.mimetype,
+            size: att.size,
+        };
+    }
+
     async markAsRead(userId: string, messageId: string) {
         const message = await this.getMessage(userId, messageId);
 
@@ -1275,12 +1299,6 @@ export class EmailService {
             total: emails.length,
             message: `Backfill complete: ${processed} embedded, ${failed} failed`,
         };
-    }
-
-    // ── Attachments ─────────────────────────────────────────────────
-
-    async getAttachmentDownloadUrl(s3Key: string): Promise<string> {
-        return this.attachmentStorage.getPresignedUrl(s3Key, 3600);
     }
 
     // ── Config / Diagnostics ────────────────────────────────────────

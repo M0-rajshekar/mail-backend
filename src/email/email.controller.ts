@@ -8,13 +8,12 @@ import {
     Param,
     Query,
     Req,
-    Res,
     UseGuards,
     NotFoundException,
     BadRequestException,
     InternalServerErrorException,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { Request } from 'express';
 import { EmailService } from './email.service';
 import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationService';
 import {
@@ -279,6 +278,17 @@ export class EmailController {
         return result;
     }
 
+    @Get('messages/:messageId/attachments/:attachmentId/download')
+    @ApiOperation({ summary: 'Get presigned download URL for an attachment' })
+    async getAttachmentUrl(
+        @Param('messageId') messageId: string,
+        @Param('attachmentId') attachmentId: string,
+        @Req() req: Request,
+    ) {
+        const userId = req.user as string;
+        return this.emailService.getAttachmentDownloadUrl(userId, messageId, attachmentId);
+    }
+
     @Put('messages/:id/read')
     @ApiOperation({ summary: 'Mark message as read' })
     async markAsRead(@Param('id') messageId: string, @Req() req: Request) {
@@ -483,36 +493,4 @@ export class EmailController {
         return this.emailService.getConfig();
     }
 
-    // ── Attachments ────────────────────────────────────────────────
-
-    @Get('messages/:messageId/attachments/:attachmentId/download')
-    @ApiOperation({ summary: 'Download attachment via presigned URL' })
-    async downloadAttachment(
-        @Param('messageId') messageId: string,
-        @Param('attachmentId') attachmentId: string,
-        @Req() req: Request,
-        @Res() res: Response,
-    ) {
-        // Verify user owns the message
-        const message = await this.emailService.getMessage(
-            req.user as string,
-            messageId,
-        );
-
-        // Find attachment in message metadata
-        const attachments = (message as any).attachments || [];
-        const attachment = attachments.find((a: any) => a.id === attachmentId);
-
-        if (!attachment) {
-            throw new NotFoundException('Attachment not found');
-        }
-
-        // Generate presigned URL for actual download
-        const downloadUrl = await this.emailService.getAttachmentDownloadUrl(
-            attachment.s3Key || `attachments/${messageId}/${attachmentId}`,
-        );
-
-        // Redirect to presigned URL
-        res.redirect(downloadUrl);
-    }
 }
