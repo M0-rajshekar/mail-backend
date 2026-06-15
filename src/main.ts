@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './filters/http-exception.filter';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
@@ -16,6 +17,12 @@ async function bootstrap() {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
     app.use(cookieParser());
+
+    // Inbound emails arrive as base64 raw MIME (with attachments) and easily
+    // exceed Express's default 100kb JSON limit. Raise it so the raw-email
+    // webhook payload isn't rejected with 413 and attachments survive.
+    app.use(json({ limit: '30mb' }));
+    app.use(urlencoded({ extended: true, limit: '30mb' }));
 
     app.enableCors({
         origin: true,

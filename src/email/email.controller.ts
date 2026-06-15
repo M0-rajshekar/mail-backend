@@ -9,6 +9,7 @@ import {
     Query,
     Req,
     UseGuards,
+    Logger,
     NotFoundException,
     BadRequestException,
     InternalServerErrorException,
@@ -144,6 +145,8 @@ class RegisterWebhookDto {
 @UseGuards(ApiKeyGuard)
 @Controller('email')
 export class EmailController {
+    private readonly logger = new Logger(EmailController.name);
+
     constructor(
         private readonly emailService: EmailService,
         private readonly apiKeyValidation: ApiKeyValidationService,
@@ -396,6 +399,12 @@ export class EmailController {
                 throw new BadRequestException('emailAddress is required');
             }
 
+            // Attachments only survive the raw-MIME path. Log which path runs so
+            // missing-attachment reports are diagnosable instead of silent.
+            this.logger.log(
+                `[inbound] ${body.emailAddress} hasRawEmail=${!!body.rawEmail} rawLen=${body.rawEmail?.length ?? 0}`,
+            );
+
             // Support both raw email (from Worker with raw) and parsed email (from Worker without raw)
             if (body.rawEmail) {
                 try {
@@ -404,8 +413,13 @@ export class EmailController {
                         body.emailAddress,
                         rawEmail,
                     );
-                } catch (parseError) {
-                    // Raw email failed to parse, fall back to basic parsed data if available
+                } catch (parseError: any) {
+                    // The parsed-data fallback CANNOT recover attachments, so make
+                    // a raw-parse failure loud instead of silently dropping them.
+                    this.logger.error(
+                        `[inbound] raw-MIME parse failed for ${body.emailAddress} — falling back WITHOUT attachments: ${parseError?.message}`,
+                        parseError?.stack,
+                    );
                     if (body.from && body.subject) {
                         return await this.emailService.handleInboundEmailParsed(
                             {
@@ -422,7 +436,10 @@ export class EmailController {
                 }
             }
 
-            // Fallback: accept parsed email data directly from Worker
+            // Fallback: no rawEmail from the worker → attachments cannot be parsed.
+            this.logger.warn(
+                `[inbound] no rawEmail from worker for ${body.emailAddress} — attachments will be dropped (parsed-data path)`,
+            );
             return await this.emailService.handleInboundEmailParsed({
                 emailAddress: body.emailAddress,
                 from: body.from,
