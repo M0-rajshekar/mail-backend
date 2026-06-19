@@ -15,7 +15,6 @@ import {
 import { CloudflareEmailService } from './cloudflare-email.service';
 import { AttachmentStorageService } from './attachment-storage.service';
 import { AttachmentExtractionService } from './attachment-extraction.service';
-import { WebhookDeliveryService } from './webhook-delivery.service';
 import { EmailParserService } from './email-parser.service';
 import { EmbeddingService } from './embedding.service';
 import { EmailGateway } from './email.gateway';
@@ -32,12 +31,10 @@ import {
 } from './email-helpers';
 import {
     canCreateInbox,
-    canCreateWebhook,
     getInboxLimit,
     getEmailsPerMonthLimit,
     getEmailsPerHourLimit,
     getEmailsPerDayLimit,
-    getWebhookLimit,
 } from '../payments/constants/subscription-plans';
 
 export interface CreateInboxDto {
@@ -65,12 +62,6 @@ export interface SendEmailDto {
     }[];
 }
 
-export interface RegisterWebhookDto {
-    url: string;
-    events?: string[];
-    secret?: string;
-}
-
 @Injectable()
 export class EmailService {
     private readonly logger = new Logger(EmailService.name);
@@ -80,7 +71,6 @@ export class EmailService {
         private readonly cloudflareEmail: CloudflareEmailService,
         private readonly attachmentStorage: AttachmentStorageService,
         private readonly attachmentExtraction: AttachmentExtractionService,
-        private readonly webhookDelivery: WebhookDeliveryService,
         private readonly emailParser: EmailParserService,
         private readonly embeddingService: EmbeddingService,
         private readonly customDomainService: CustomDomainService,
@@ -214,12 +204,6 @@ export class EmailService {
             `Created inbox ${inbox.id} for user ${userId}${customDomainId ? ' on custom domain' : ''}`,
         );
 
-        // Trigger webhooks
-        await this.webhookDelivery.deliverEvent(userId, 'inbox.created', {
-            inboxId: inbox.id,
-            emailAddress: inbox.emailAddress,
-        });
-
         return inbox;
     }
 
@@ -238,6 +222,7 @@ export class EmailService {
             where: { id: userId },
             select: {
                 Subscription: {
+                    where: { subscriptionStatus: 'ACTIVE' },
                     orderBy: { createdAt: 'desc' },
                     take: 1,
                     select: { subscriptionPlan: true },
@@ -245,6 +230,7 @@ export class EmailService {
             },
         });
 
+        // No active subscription → 'FREE' sentinel → blocking fallback limits.
         return user?.Subscription?.[0]?.subscriptionPlan || 'FREE';
     }
 
@@ -301,12 +287,6 @@ export class EmailService {
         await this.prisma.inbox.update({
             where: { id: inboxId },
             data: { status: InboxStatus.DELETED },
-        });
-
-        // Trigger webhooks
-        await this.webhookDelivery.deliverEvent(userId, 'inbox.deleted', {
-            inboxId,
-            emailAddress: inbox.emailAddress,
         });
 
         return { success: true };
@@ -490,14 +470,6 @@ export class EmailService {
                 totalEmails: inbox.totalEmails + 1,
             });
         }
-
-        // Trigger webhooks
-        await this.webhookDelivery.deliverEvent(userId, 'email.sent', {
-            inboxId,
-            messageId: message.id,
-            to: dto.to,
-            subject: dto.subject,
-        });
 
         this.logger.log(`Sent email from ${fromEmail} to ${dto.to.join(', ')}`);
         return message;
@@ -693,22 +665,6 @@ export class EmailService {
             },
         });
 
-        // Trigger webhooks
-        await this.webhookDelivery.deliverEvent(
-            inbox.userId,
-            'email.received',
-            {
-                inboxId: inbox.id,
-                messageId: message.id,
-                from: parsed.from?.address,
-                subject: parsed.subject,
-                preview:
-                    parsed.text?.substring(0, 200) ||
-                    stripHtmlToText(parsed.html || '').substring(0, 200),
-                threadId: message.threadId,
-            },
-        );
-
         this.logger.log(
             `Received email for ${emailAddress} from ${parsed.from?.address}`,
         );
@@ -824,20 +780,6 @@ export class EmailService {
                 totalEmails: inbox.totalEmails + 1,
             });
         }
-
-        // Trigger webhooks
-        await this.webhookDelivery.deliverEvent(
-            inbox.userId,
-            'email.received',
-            {
-                inboxId: inbox.id,
-                messageId: message.id,
-                from: from,
-                subject: subject,
-                preview: body?.substring(0, 200) || '',
-                threadId: message.threadId,
-            },
-        );
 
         this.logger.log(
             `Received parsed email for ${emailAddress} from ${from}`,
@@ -1067,58 +1009,6 @@ export class EmailService {
         };
     }
 
-    // ── Webhook Management ─────────────────────────────────────────
-
-    async registerWebhook(userId: string, dto: RegisterWebhookDto) {
-        // Check subscription plan webhook limits
-        const planTier = await this.resolvePlanTier(userId);
-
-        const currentWebhookCount = await this.prisma.webhookEndpoint.count({
-            where: { userId, status: 'ACTIVE' },
-        });
-
-        if (!canCreateWebhook(planTier, currentWebhookCount)) {
-            const limit = getWebhookLimit(planTier);
-            throw new BadRequestException(
-                `Webhook limit reached: your ${planTier} plan allows ${limit === -1 ? 'unlimited' : limit} webhooks. Upgrade to create more.`,
-            );
-        }
-
-        const webhook = await this.prisma.webhookEndpoint.create({
-            data: {
-                userId,
-                url: dto.url,
-                events: dto.events || ['email.received'],
-                secret: dto.secret,
-            },
-        });
-
-        return webhook;
-    }
-
-    async getWebhooks(userId: string) {
-        return this.prisma.webhookEndpoint.findMany({
-            where: { userId },
-            orderBy: { createdAt: 'desc' },
-        });
-    }
-
-    async deleteWebhook(userId: string, webhookId: string) {
-        const webhook = await this.prisma.webhookEndpoint.findFirst({
-            where: { id: webhookId, userId },
-        });
-
-        if (!webhook) {
-            throw new NotFoundException('Webhook not found');
-        }
-
-        await this.prisma.webhookEndpoint.delete({
-            where: { id: webhookId },
-        });
-
-        return { success: true };
-    }
-
     // ── Stats ───────────────────────────────────────────────────────
 
     async getStats(userId: string) {
@@ -1126,9 +1016,7 @@ export class EmailService {
             totalInboxes,
             totalEmails,
             emailsSent,
-            emailsReceived,
-            activeWebhooks,
-            recentEmails,
+            emailsReceived,            recentEmails,
         ] = await Promise.all([
             this.prisma.inbox.count({ where: { userId } }),
             this.prisma.emailMessage.count({
@@ -1139,9 +1027,6 @@ export class EmailService {
             }),
             this.prisma.emailMessage.count({
                 where: { inbox: { userId }, direction: 'INBOUND' },
-            }),
-            this.prisma.webhookEndpoint.count({
-                where: { userId, status: 'ACTIVE' },
             }),
             this.prisma.emailMessage.findMany({
                 where: { inbox: { userId } },
@@ -1162,9 +1047,7 @@ export class EmailService {
             totalInboxes,
             totalEmails,
             emailsSent,
-            emailsReceived,
-            activeWebhooks,
-            recentEmails,
+            emailsReceived,            recentEmails,
         };
     }
 

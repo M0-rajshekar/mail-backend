@@ -53,24 +53,44 @@ export class McpController {
      * Track MCP usage: send FlexPrice event for analytics
      */
     private async trackMcpUsage(userId: string, toolName: string, apiKey: string, quantity: number = 1) {
+        // MCP tool names are namespaced (e.g. "email.send_email"); normalize to the bare
+        // name and alias to the canonical REST credit key so costs + FlexPrice event
+        // names match the REST API path exactly.
+        const raw = toolName.includes('.') ? toolName.split('.').pop()! : toolName;
+        const ALIAS: Record<string, string> = {
+            get_messages: 'list_messages',
+            get_inbox_stats: 'get_email_stats',
+        };
+        const tool = ALIAS[raw] ?? raw;
+
+        const { getToolCredits } = await import('../utils/tool-credits');
+        const credits = getToolCredits(tool);
+
+        // Deduct credits from the local ledger (same as the REST API path).
+        try {
+            await this.apiKeyValidation.deductCredits(apiKey, credits, tool);
+        } catch (e) {
+            console.warn(`[trackMcpUsage] Failed to deduct credits for ${tool}:`, e);
+        }
+
+        // Send FlexPrice event for analytics.
         try {
             const { sendFlexPriceEvent } = await import('../utils/siren.utils');
-            const { getToolCredits } = await import('../utils/tool-credits');
             await sendFlexPriceEvent({
-                type: toolName,
+                type: tool,
                 id: `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
                 time: new Date().toISOString(),
                 source: 'AgentMail_MCP',
                 subject: userId,
                 data: {
-                    credits: getToolCredits(toolName),
-                    toolType: toolName,
+                    credits,
+                    toolType: tool,
                     quantity,
                     currentPlan: 'mcp',
                 },
             });
         } catch (e) {
-            console.warn(`[trackMcpUsage] Failed to send FlexPrice event for ${toolName}:`, e);
+            console.warn(`[trackMcpUsage] Failed to send FlexPrice event for ${tool}:`, e);
         }
     }
 

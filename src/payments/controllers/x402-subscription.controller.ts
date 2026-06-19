@@ -26,6 +26,16 @@ export class X402SubscriptionController {
     ) {}
 
     private getPrice(plan: string, period: string): number {
+        // Global test-payment override: charge a tiny amount (e.g. 0.01) for every
+        // plan/period while leaving the real per-plan prices in place. Unset in prod.
+        const testPrice = this.configService.get('PAYMENT_TEST_PRICE');
+        if (testPrice) {
+            const t = parseFloat(testPrice);
+            if (!isNaN(t) && t > 0) {
+                return t;
+            }
+        }
+
         // First try environment variables
         const envKey = `${plan}_${period}_PRICE`;
         const priceStr = this.configService.get(envKey);
@@ -63,13 +73,11 @@ export class X402SubscriptionController {
             (tier) => tier.toLowerCase() === plan.toLowerCase(),
         );
 
-        if (!validPlan || validPlan === SubscriptionTier.FREE) {
+        if (!validPlan) {
             throw new BadRequestException(
                 `Invalid subscription plan: ${plan}. Valid plans: ${Object.values(
                     SubscriptionTier,
-                )
-                    .filter((t) => t !== SubscriptionTier.FREE)
-                    .join(', ')}`,
+                ).join(', ')}`,
             );
         }
 
@@ -101,9 +109,7 @@ export class X402SubscriptionController {
     @ApiParam({
         name: 'plan',
         description: 'Subscription plan',
-        enum: Object.values(SubscriptionTier).filter(
-            (t) => t !== SubscriptionTier.FREE,
-        ),
+        enum: Object.values(SubscriptionTier),
     })
     @ApiParam({
         name: 'period',
@@ -159,9 +165,7 @@ export class X402SubscriptionController {
     @ApiParam({
         name: 'plan',
         description: 'Subscription plan',
-        enum: Object.values(SubscriptionTier).filter(
-            (t) => t !== SubscriptionTier.FREE,
-        ),
+        enum: Object.values(SubscriptionTier),
     })
     @ApiParam({
         name: 'period',
@@ -213,9 +217,7 @@ export class X402SubscriptionController {
     @ApiParam({
         name: 'plan',
         description: 'Subscription plan',
-        enum: Object.values(SubscriptionTier).filter(
-            (t) => t !== SubscriptionTier.FREE,
-        ),
+        enum: Object.values(SubscriptionTier),
     })
     @ApiParam({
         name: 'period',
@@ -265,9 +267,7 @@ export class X402SubscriptionController {
     @ApiParam({
         name: 'plan',
         description: 'Subscription plan',
-        enum: Object.values(SubscriptionTier).filter(
-            (t) => t !== SubscriptionTier.FREE,
-        ),
+        enum: Object.values(SubscriptionTier),
     })
     @ApiParam({
         name: 'period',

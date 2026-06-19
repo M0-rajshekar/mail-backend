@@ -10,7 +10,6 @@ import { CloudflareEmailService } from './cloudflare-email.service';
 import { CloudflareZonesService } from './cloudflare-zones.service';
 import { AttachmentStorageService } from './attachment-storage.service';
 import { AttachmentExtractionService } from './attachment-extraction.service';
-import { WebhookDeliveryService } from './webhook-delivery.service';
 import { EmailParserService } from './email-parser.service';
 import { EmbeddingService } from './embedding.service';
 import { PrismaService } from '../services/prisma.service';
@@ -25,7 +24,6 @@ import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationServi
         CloudflareZonesService,
         AttachmentStorageService,
         AttachmentExtractionService,
-        WebhookDeliveryService,
         EmailParserService,
         EmbeddingService,
         PrismaService,
@@ -39,7 +37,6 @@ import { ApiKeyValidationService } from '../shared/service/ApiKeyValidationServi
         CloudflareEmailService,
         AttachmentStorageService,
         AttachmentExtractionService,
-        WebhookDeliveryService,
         EmailParserService,
         EmbeddingService,
     ],

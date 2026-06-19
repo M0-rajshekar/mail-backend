@@ -120,26 +120,6 @@ class SendEmailDto {
     attachments?: AttachmentDto[];
 }
 
-class RegisterWebhookDto {
-    @ApiProperty({ description: 'Webhook callback URL' })
-    @IsString()
-    @IsNotEmpty()
-    url: string;
-
-    @ApiPropertyOptional({ description: 'Events to subscribe to' })
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    events?: string[];
-
-    @ApiPropertyOptional({
-        description: 'Webhook secret for signature verification',
-    })
-    @IsOptional()
-    @IsString()
-    secret?: string;
-}
-
 @ApiTags('Email')
 @ApiBearerAuth()
 @UseGuards(ApiKeyGuard)
@@ -459,38 +439,6 @@ export class EmailController {
                 error.message || 'Failed to process inbound email',
             );
         }
-    }
-
-    // ── Webhooks ───────────────────────────────────────────────────
-
-    @Post('webhooks')
-    @ApiOperation({ summary: 'Register webhook endpoint' })
-    async registerWebhook(
-        @Body() dto: RegisterWebhookDto,
-        @Req() req: Request,
-    ) {
-        const userId = req.user as string;
-        const result = await this.emailService.registerWebhook(userId, dto);
-        await this.trackUsage(req, 'register_webhook');
-        return result;
-    }
-
-    @Get('webhooks')
-    @ApiOperation({ summary: 'List webhook endpoints' })
-    async getWebhooks(@Req() req: Request) {
-        const userId = req.user as string;
-        const result = await this.emailService.getWebhooks(userId);
-        await this.trackUsage(req, 'list_webhooks', Array.isArray(result) ? result.length : 0);
-        return result;
-    }
-
-    @Delete('webhooks/:id')
-    @ApiOperation({ summary: 'Delete webhook endpoint' })
-    async deleteWebhook(@Param('id') id: string, @Req() req: Request) {
-        const userId = req.user as string;
-        const result = await this.emailService.deleteWebhook(userId, id);
-        await this.trackUsage(req, 'delete_webhook');
-        return result;
     }
 
     // ── Bulk Embeddings ───────────────────────────────────────────

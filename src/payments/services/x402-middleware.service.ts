@@ -122,9 +122,7 @@ export class X402MiddlewareService {
         );
 
         // Get subscription plans and billing periods from Prisma enums
-        const plans = Object.values(SubscriptionTier).filter(
-            (tier) => tier !== SubscriptionTier.FREE,
-        ); // Exclude FREE tier from X402 payments
+        const plans = Object.values(SubscriptionTier); // All tiers are paid
         const periods = Object.values(BillingPeriod);
         const networks = getX402ExpressSupportedNetworks().map(
             (network) => network.name,
@@ -195,10 +193,16 @@ export class X402MiddlewareService {
 
         // Build pricing object using Prisma enums and constants
         Object.values(SubscriptionTier).forEach((tier) => {
-            if (tier === SubscriptionTier.FREE) return; // Skip FREE tier for X402 payments
-
             pricing[tier] = {};
             Object.values(BillingPeriod).forEach((period) => {
+                // Global test-payment override (see x402-subscription.controller getPrice).
+                const testPrice = this.configService.get('PAYMENT_TEST_PRICE');
+                const testNum = testPrice ? parseFloat(testPrice) : NaN;
+                if (!isNaN(testNum) && testNum > 0) {
+                    pricing[tier][period] = testNum;
+                    return;
+                }
+
                 // Try to get from environment variables first, then fall back to constants
                 const envKey = `${tier}_${period}_PRICE`;
                 const envPrice = this.configService.get(envKey);

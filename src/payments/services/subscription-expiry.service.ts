@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../services/prisma.service';
-import { SubscriptionStatus, SubscriptionTier } from 'generated/prisma';
+import { SubscriptionStatus, PaymentPlan } from 'generated/prisma';
 
 @Injectable()
 export class SubscriptionExpiryService {
@@ -31,9 +31,6 @@ export class SubscriptionExpiryService {
                 await this.prismaService.subscription.findMany({
                     where: {
                         subscriptionStatus: SubscriptionStatus.ACTIVE,
-                        subscriptionPlan: {
-                            not: SubscriptionTier.FREE,
-                        },
                         OR: [
                             {
                                 nextBillingDate: { lt: now },
@@ -73,18 +70,24 @@ export class SubscriptionExpiryService {
         this.logger.log(`Processing expired subscription for user ${userId}`);
 
         try {
-            // Downgrade subscription to FREE and mark CANCELLED
+            // Mark the subscription CANCELLED and return the user to the unpaid
+            // state. There is no FREE subscription tier anymore — an expired user
+            // simply has no active subscription (resolvePlanTier blocks sending).
             await this.prismaService.subscription.update({
                 where: { id: subscription.id },
                 data: {
-                    subscriptionPlan: SubscriptionTier.FREE,
                     subscriptionStatus: SubscriptionStatus.CANCELLED,
                     updatedAt: new Date(),
                 },
             });
 
+            await this.prismaService.user.update({
+                where: { id: userId },
+                data: { currentPlan: PaymentPlan.FREE },
+            });
+
             this.logger.log(
-                `Downgraded subscription to FREE for user ${userId}`,
+                `Expired subscription cancelled for user ${userId}`,
             );
         } catch (error: any) {
             this.logger.error(

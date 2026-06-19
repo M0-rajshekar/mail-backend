@@ -985,10 +985,19 @@ export class PaymentsService {
             const merchantId =
                 this.configService.getOrThrow<string>('ATLOS_MERCHANT_ID');
 
+            // Test-payment override: charge a tiny amount (e.g. 0.01) for every top-up
+            // when PAYMENT_TEST_PRICE is set. Mirrors the subscription override. Off in prod.
+            const testPrice = this.configService.get('PAYMENT_TEST_PRICE');
+            const testNum = testPrice ? parseFloat(testPrice) : NaN;
+            const orderAmount =
+                !isNaN(testNum) && testNum > 0
+                    ? testNum
+                    : createAtlosInvoiceDto.orderAmount;
+
             const payload = {
                 MerchantId: merchantId,
                 OrderId: createAtlosInvoiceDto.orderId || null,
-                OrderAmount: createAtlosInvoiceDto.orderAmount,
+                OrderAmount: orderAmount,
                 UserName: user.username ? user.username : `cus_${userId}`,
                 UserEmail: user.email ? user.email : null,
                 PostbackUrl: `${this.configService.getOrThrow<string>('SELF_DOMAIN')}/payments/webhook/social/confirm-payin-completed`,

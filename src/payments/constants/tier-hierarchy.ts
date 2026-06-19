@@ -5,10 +5,11 @@
 
 export enum TierLevel {
     FREE = 0,
-    STANDARD = 1,
-    TEAM = 2,
-    PRO = 3,
-    ULTIMATE = 4,
+    LIGHT = 1,
+    STANDARD = 2,
+    TEAM = 3,
+    PRO = 4,
+    ULTIMATE = 5,
 }
 
 /**

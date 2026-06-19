@@ -381,7 +381,7 @@ enum PaymentPlan {
 }
 
 enum SubscriptionTier {
-  FREE
+  LIGHT
   STANDARD
   TEAM
   PRO
