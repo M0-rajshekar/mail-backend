@@ -1284,8 +1284,9 @@ export class PaymentsService {
                 throw new NotFoundException('User not found');
             }
 
-            // Determine user's rate limit tier
-            let rateLimitTier: RateLimitTier = 'FREE';
+            // Determine user's rate limit tier. No active subscription falls back
+            // to the lowest paid tier's limits (LIGHT).
+            let rateLimitTier: RateLimitTier = 'LIGHT';
 
             if (user.Subscription && user.Subscription.length > 0) {
                 const subscription = user.Subscription[0];
