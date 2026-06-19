@@ -61,7 +61,12 @@ export type ToolName =
     | 'get_message'
     | 'get_email_stats'
     | 'search_emails'
-    | 'semantic_search';
+    | 'semantic_search'
+    | 'create_label'
+    | 'list_labels'
+    | 'delete_label'
+    | 'apply_label'
+    | 'remove_label';
 
 type ToolCredits = Record<ToolName, number>;
 
@@ -129,6 +134,12 @@ export const toolCredits: ToolCredits = {
     get_email_stats: 0,
     search_emails: 0,
     semantic_search: 0,
+    // Labels — organizational, free
+    create_label: 0,
+    list_labels: 0,
+    delete_label: 0,
+    apply_label: 0,
+    remove_label: 0,
 };
 
 export function getToolCredits(toolName: string): number {

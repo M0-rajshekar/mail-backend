@@ -351,6 +351,85 @@ export class McpController {
                                 },
                             },
                             {
+                                name: 'email.create_label',
+                                description:
+                                    'Create a label for organizing emails',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        name: {
+                                            type: 'string',
+                                            description: 'Label name',
+                                        },
+                                        color: {
+                                            type: 'string',
+                                            description:
+                                                'Hex color (e.g., #10b981). Optional.',
+                                        },
+                                    },
+                                    required: ['name'],
+                                },
+                            },
+                            {
+                                name: 'email.list_labels',
+                                description:
+                                    'List all labels with their message counts',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {},
+                                },
+                            },
+                            {
+                                name: 'email.delete_label',
+                                description: 'Delete a label',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        labelId: {
+                                            type: 'string',
+                                            description: 'Label ID to delete',
+                                        },
+                                    },
+                                    required: ['labelId'],
+                                },
+                            },
+                            {
+                                name: 'email.apply_label',
+                                description: 'Apply a label to a message',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        messageId: {
+                                            type: 'string',
+                                            description: 'Message ID',
+                                        },
+                                        labelId: {
+                                            type: 'string',
+                                            description: 'Label ID',
+                                        },
+                                    },
+                                    required: ['messageId', 'labelId'],
+                                },
+                            },
+                            {
+                                name: 'email.remove_label',
+                                description: 'Remove a label from a message',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        messageId: {
+                                            type: 'string',
+                                            description: 'Message ID',
+                                        },
+                                        labelId: {
+                                            type: 'string',
+                                            description: 'Label ID',
+                                        },
+                                    },
+                                    required: ['messageId', 'labelId'],
+                                },
+                            },
+                            {
                                 name: 'domain.list_domains',
                                 description:
                                     'List all registered custom domains',
@@ -520,6 +599,46 @@ export class McpController {
 
                         case 'email.get_inbox_stats': {
                             result = await this.emailService.getStats(userId);
+                            break;
+                        }
+
+                        case 'email.create_label': {
+                            result = await this.emailService.createLabel(
+                                userId,
+                                args.name,
+                                args.color,
+                            );
+                            break;
+                        }
+
+                        case 'email.list_labels': {
+                            result = await this.emailService.getLabels(userId);
+                            break;
+                        }
+
+                        case 'email.delete_label': {
+                            result = await this.emailService.deleteLabel(
+                                userId,
+                                args.labelId,
+                            );
+                            break;
+                        }
+
+                        case 'email.apply_label': {
+                            result = await this.emailService.applyLabel(
+                                userId,
+                                args.messageId,
+                                args.labelId,
+                            );
+                            break;
+                        }
+
+                        case 'email.remove_label': {
+                            result = await this.emailService.removeLabel(
+                                userId,
+                                args.messageId,
+                                args.labelId,
+                            );
                             break;
                         }
 

@@ -873,26 +873,47 @@ export class EmailService {
                 orderBy: { createdAt: 'desc' },
                 skip: offset,
                 take: limit,
+                include: { labels: { include: { label: true } } },
             }),
             this.prisma.emailMessage.count({
                 where: { inboxId },
             }),
         ]);
 
-        return { emails, totalCount };
+        return {
+            emails: emails.map((e) => ({
+                ...e,
+                labels: e.labels.map((l) => ({
+                    id: l.label.id,
+                    name: l.label.name,
+                    color: l.label.color,
+                })),
+            })),
+            totalCount,
+        };
     }
 
     async getMessage(userId: string, messageId: string) {
         const message = await this.prisma.emailMessage.findFirst({
             where: { id: messageId },
-            include: { inbox: true },
+            include: {
+                inbox: true,
+                labels: { include: { label: true } },
+            },
         });
 
         if (!message || message.inbox.userId !== userId) {
             throw new NotFoundException('Message not found');
         }
 
-        return message;
+        return {
+            ...message,
+            labels: message.labels.map((l) => ({
+                id: l.label.id,
+                name: l.label.name,
+                color: l.label.color,
+            })),
+        };
     }
 
     async getAttachmentDownloadUrl(
@@ -970,6 +991,138 @@ export class EmailService {
         });
 
         return { success: true };
+    }
+
+    // ── Labels ──────────────────────────────────────────────────────
+
+    /**
+     * Create a label for the user. Names are unique per user (case-sensitive).
+     */
+    async createLabel(userId: string, name: string, color?: string) {
+        const trimmed = (name || '').trim();
+        if (!trimmed) {
+            throw new BadRequestException('Label name is required');
+        }
+
+        const existing = await this.prisma.label.findFirst({
+            where: { userId, name: trimmed },
+        });
+        if (existing) {
+            throw new BadRequestException('A label with that name already exists');
+        }
+
+        return this.prisma.label.create({
+            data: {
+                userId,
+                name: trimmed,
+                ...(color ? { color } : {}),
+            },
+        });
+    }
+
+    /**
+     * List all labels for the user, with how many messages each is applied to.
+     */
+    async getLabels(userId: string) {
+        const labels = await this.prisma.label.findMany({
+            where: { userId },
+            orderBy: { name: 'asc' },
+            include: { _count: { select: { messages: true } } },
+        });
+
+        return labels.map((l) => ({
+            id: l.id,
+            name: l.name,
+            color: l.color,
+            messageCount: l._count.messages,
+            createdAt: l.createdAt,
+        }));
+    }
+
+    /**
+     * Delete a label (removes it from all messages via cascade).
+     */
+    async deleteLabel(userId: string, labelId: string) {
+        const label = await this.prisma.label.findFirst({
+            where: { id: labelId, userId },
+        });
+        if (!label) {
+            throw new NotFoundException('Label not found');
+        }
+
+        await this.prisma.label.delete({ where: { id: labelId } });
+        return { success: true };
+    }
+
+    /**
+     * Resolve a label that belongs to the user, throwing if not found.
+     */
+    private async assertLabelOwned(userId: string, labelId: string) {
+        const label = await this.prisma.label.findFirst({
+            where: { id: labelId, userId },
+        });
+        if (!label) {
+            throw new NotFoundException('Label not found');
+        }
+        return label;
+    }
+
+    /**
+     * Apply a label to a message (idempotent).
+     */
+    async applyLabel(userId: string, messageId: string, labelId: string) {
+        await this.getMessage(userId, messageId); // ownership check
+        await this.assertLabelOwned(userId, labelId);
+
+        await this.prisma.emailMessageLabel.upsert({
+            where: { messageId_labelId: { messageId, labelId } },
+            create: { messageId, labelId },
+            update: {},
+        });
+
+        return { success: true };
+    }
+
+    /**
+     * Remove a label from a message (idempotent).
+     */
+    async removeLabel(userId: string, messageId: string, labelId: string) {
+        await this.getMessage(userId, messageId); // ownership check
+        await this.assertLabelOwned(userId, labelId);
+
+        await this.prisma.emailMessageLabel.deleteMany({
+            where: { messageId, labelId },
+        });
+
+        return { success: true };
+    }
+
+    /**
+     * List messages that carry a given label.
+     */
+    async getMessagesByLabel(
+        userId: string,
+        labelId: string,
+        limit = 50,
+        offset = 0,
+    ) {
+        await this.assertLabelOwned(userId, labelId);
+
+        const [rows, totalCount] = await Promise.all([
+            this.prisma.emailMessageLabel.findMany({
+                where: { labelId },
+                include: { message: true },
+                orderBy: { createdAt: 'desc' },
+                take: limit,
+                skip: offset,
+            }),
+            this.prisma.emailMessageLabel.count({ where: { labelId } }),
+        ]);
+
+        return {
+            emails: rows.map((r) => r.message),
+            totalCount,
+        };
     }
 
     // ── Reply & Forward ─────────────────────────────────────────────

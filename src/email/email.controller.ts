@@ -323,6 +323,97 @@ export class EmailController {
         return this.emailService.createReplyDraft(userId, inboxId, threadId);
     }
 
+    // ── Labels ──────────────────────────────────────────────────────
+
+    @Post('labels')
+    @ApiOperation({ summary: 'Create a label' })
+    async createLabel(
+        @Body() dto: { name: string; color?: string },
+        @Req() req: Request,
+    ) {
+        const userId = req.user as string;
+        const result = await this.emailService.createLabel(
+            userId,
+            dto.name,
+            dto.color,
+        );
+        await this.trackUsage(req, 'create_label');
+        return result;
+    }
+
+    @Get('labels')
+    @ApiOperation({ summary: 'List all labels' })
+    async getLabels(@Req() req: Request) {
+        const userId = req.user as string;
+        const result = await this.emailService.getLabels(userId);
+        await this.trackUsage(req, 'list_labels');
+        return result;
+    }
+
+    @Delete('labels/:id')
+    @ApiOperation({ summary: 'Delete a label' })
+    async deleteLabel(@Param('id') labelId: string, @Req() req: Request) {
+        const userId = req.user as string;
+        const result = await this.emailService.deleteLabel(userId, labelId);
+        await this.trackUsage(req, 'delete_label');
+        return result;
+    }
+
+    @Get('labels/:id/messages')
+    @ApiOperation({ summary: 'List messages with a given label' })
+    @ApiQuery({ name: 'limit', required: false, type: Number })
+    @ApiQuery({ name: 'offset', required: false, type: Number })
+    async getMessagesByLabel(
+        @Param('id') labelId: string,
+        @Query('limit') limit = 50,
+        @Query('offset') offset = 0,
+        @Req() req?: Request,
+    ) {
+        const userId = (req as any).user as string;
+        const result = await this.emailService.getMessagesByLabel(
+            userId,
+            labelId,
+            +limit,
+            +offset,
+        );
+        await this.trackUsage(req as Request, 'list_messages');
+        return result;
+    }
+
+    @Put('messages/:id/labels/:labelId')
+    @ApiOperation({ summary: 'Apply a label to a message' })
+    async applyLabel(
+        @Param('id') messageId: string,
+        @Param('labelId') labelId: string,
+        @Req() req: Request,
+    ) {
+        const userId = req.user as string;
+        const result = await this.emailService.applyLabel(
+            userId,
+            messageId,
+            labelId,
+        );
+        await this.trackUsage(req, 'apply_label');
+        return result;
+    }
+
+    @Delete('messages/:id/labels/:labelId')
+    @ApiOperation({ summary: 'Remove a label from a message' })
+    async removeLabel(
+        @Param('id') messageId: string,
+        @Param('labelId') labelId: string,
+        @Req() req: Request,
+    ) {
+        const userId = req.user as string;
+        const result = await this.emailService.removeLabel(
+            userId,
+            messageId,
+            labelId,
+        );
+        await this.trackUsage(req, 'remove_label');
+        return result;
+    }
+
     // ── Search ──────────────────────────────────────────────────────
 
     @Get('search')
