@@ -4,8 +4,9 @@
  *
  * Pricing model:
  * - Inbound emails (Email Routing): Unlimited on all plans (handled by Cloudflare)
- * - Outbound emails (Email Sending): Included quota per plan, overages $0.35 per 1,000
- * - Cost basis: $0.35 per 1,000 outbound emails
+ * - Outbound emails (Email Sending): Included monthly quota per plan, enforced as a
+ *   hard cap (no metered overage billing — users upgrade or top up to send more)
+ * - Internal cost basis only: ~$0.35 per 1,000 outbound emails
  *
  * Margin calculation:
  * - STANDARD ($15): 3,000 outbound = $1.05 cost → 93% margin
@@ -85,9 +86,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         features: [
             '15 Email Inboxes',
             '3,000 outbound emails / month',
-            'Unlimited inbound emails',
-            '$0.35 per 1,000 extra outbound',
-            '50 emails/hour per inbox',
+            'Unlimited inbound emails',            '50 emails/hour per inbox',
             '10 Webhook endpoints',
             '5 attachments per email',
             '10 MB attachment limit',
@@ -118,9 +117,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         features: [
             '50 Email Inboxes',
             '12,000 outbound emails / month',
-            'Unlimited inbound emails',
-            '$0.35 per 1,000 extra outbound',
-            '100 emails/hour per inbox',
+            'Unlimited inbound emails',            '100 emails/hour per inbox',
             '25 Webhook endpoints',
             '10 attachments per email',
             '25 MB attachment limit',
@@ -152,9 +149,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         features: [
             '100 Email Inboxes',
             '35,000 outbound emails / month',
-            'Unlimited inbound emails',
-            '$0.35 per 1,000 extra outbound',
-            '200 emails/hour per inbox',
+            'Unlimited inbound emails',            '200 emails/hour per inbox',
             'Unlimited Webhooks',
             '20 attachments per email',
             '50 MB attachment limit',
@@ -186,9 +181,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
         features: [
             '250 Email Inboxes',
             '100,000 outbound emails / month',
-            'Unlimited inbound emails',
-            '$0.35 per 1,000 extra outbound',
-            '500 emails/hour per inbox',
+            'Unlimited inbound emails',            '500 emails/hour per inbox',
             'Unlimited Webhooks',
             '50 attachments per email',
             '100 MB attachment limit',
