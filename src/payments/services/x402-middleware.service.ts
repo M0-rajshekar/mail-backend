@@ -195,14 +195,6 @@ export class X402MiddlewareService {
         Object.values(SubscriptionTier).forEach((tier) => {
             pricing[tier] = {};
             Object.values(BillingPeriod).forEach((period) => {
-                // Global test-payment override (see x402-subscription.controller getPrice).
-                const testPrice = this.configService.get('PAYMENT_TEST_PRICE');
-                const testNum = testPrice ? parseFloat(testPrice) : NaN;
-                if (!isNaN(testNum) && testNum > 0) {
-                    pricing[tier][period] = testNum;
-                    return;
-                }
-
                 // Try to get from environment variables first, then fall back to constants
                 const envKey = `${tier}_${period}_PRICE`;
                 const envPrice = this.configService.get(envKey);

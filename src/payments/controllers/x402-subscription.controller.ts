@@ -26,16 +26,6 @@ export class X402SubscriptionController {
     ) {}
 
     private getPrice(plan: string, period: string): number {
-        // Global test-payment override: charge a tiny amount (e.g. 0.01) for every
-        // plan/period while leaving the real per-plan prices in place. Unset in prod.
-        const testPrice = this.configService.get('PAYMENT_TEST_PRICE');
-        if (testPrice) {
-            const t = parseFloat(testPrice);
-            if (!isNaN(t) && t > 0) {
-                return t;
-            }
-        }
-
         // First try environment variables
         const envKey = `${plan}_${period}_PRICE`;
         const priceStr = this.configService.get(envKey);
