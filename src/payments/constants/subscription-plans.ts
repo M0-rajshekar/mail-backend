@@ -24,7 +24,8 @@ export interface SubscriptionPlanConfig {
     outboundEmailsPerMonth: number; // Outbound (sending) quota. -1 = unlimited
     inboundEmailsPerMonth: number; // Always -1 (unlimited) for all plans
     emailsPerHour: number; // per-inbox rate limit
-    emailsPerDay: number; // per-inbox rate limit    maxAttachmentsPerEmail: number;
+    emailsPerDay: number; // per-inbox rate limit
+    maxAttachmentsPerEmail: number;
     maxAttachmentSizeMB: number;
     storageGB: number; // -1 = unlimited
     apiCallsPerMinute: number;
