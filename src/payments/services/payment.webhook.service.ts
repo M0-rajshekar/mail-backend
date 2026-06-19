@@ -29,6 +29,7 @@ import {
     getSubscriptionPrice,
     getSubscriptionCredits,
 } from '../constants/subscription-plans';
+import { CREDIT_PER_DOLLAR_TOP_UP } from '../constants';
 
 @Injectable()
 export class PaymentsWebhookService implements OnModuleInit {
@@ -247,7 +248,7 @@ export class PaymentsWebhookService implements OnModuleInit {
         // Calculate credits based on amount
         const creditsPerAmount = Number(
             this.configService.get<string>('CREDITS_PER_AMOUNT_TOP_UP') ||
-                '240',
+                String(CREDIT_PER_DOLLAR_TOP_UP),
         );
 
         if (isNaN(creditsPerAmount) || creditsPerAmount <= 0) {
@@ -787,7 +788,7 @@ export class PaymentsWebhookService implements OnModuleInit {
 
         const creditsPerAmount = Number(
             this.configService.get<string>('CREDITS_PER_AMOUNT_TOP_UP') ||
-                '240',
+                String(CREDIT_PER_DOLLAR_TOP_UP),
         );
 
         if (isNaN(creditsPerAmount) || creditsPerAmount <= 0) {

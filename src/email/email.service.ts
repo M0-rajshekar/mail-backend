@@ -187,19 +187,16 @@ export class EmailService {
         }
 
         // Check subscription plan limits
-        const user = await this.prisma.user.findUnique({
-            where: { id: userId },
-            select: { currentPlan: true },
-        });
+        const planTier = await this.resolvePlanTier(userId);
 
         const currentInboxCount = await this.prisma.inbox.count({
             where: { userId, status: { not: 'DELETED' } },
         });
 
-        if (!canCreateInbox(user?.currentPlan || 'FREE', currentInboxCount)) {
-            const limit = getInboxLimit(user?.currentPlan || 'FREE');
+        if (!canCreateInbox(planTier, currentInboxCount)) {
+            const limit = getInboxLimit(planTier);
             throw new BadRequestException(
-                `Inbox limit reached: your ${user?.currentPlan || 'FREE'} plan allows ${limit === -1 ? 'unlimited' : limit} inboxes. Upgrade to create more.`,
+                `Inbox limit reached: your ${planTier} plan allows ${limit === -1 ? 'unlimited' : limit} inboxes. Upgrade to create more.`,
             );
         }
 
@@ -216,7 +213,39 @@ export class EmailService {
         this.logger.log(
             `Created inbox ${inbox.id} for user ${userId}${customDomainId ? ' on custom domain' : ''}`,
         );
+
+        // Trigger webhooks
+        await this.webhookDelivery.deliverEvent(userId, 'inbox.created', {
+            inboxId: inbox.id,
+            emailAddress: inbox.emailAddress,
+        });
+
         return inbox;
+    }
+
+    /**
+     * Resolve the user's effective SubscriptionTier (FREE/STANDARD/TEAM/PRO/ULTIMATE)
+     * for quota enforcement.
+     *
+     * NOTE: `User.currentPlan` is a `PaymentPlan` (FREE/TOP_UP/SUBSCRIPTION) — NOT a
+     * subscription tier. Passing it into the plan-limit helpers makes paid users
+     * (currentPlan = 'SUBSCRIPTION') miss the lookup table and silently fall back to
+     * FREE limits. The real tier lives on the latest Subscription row, mirroring
+     * CustomDomainService.registerDomain.
+     */
+    private async resolvePlanTier(userId: string): Promise<string> {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                Subscription: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1,
+                    select: { subscriptionPlan: true },
+                },
+            },
+        });
+
+        return user?.Subscription?.[0]?.subscriptionPlan || 'FREE';
     }
 
     async getInboxes(userId: string) {
@@ -274,6 +303,12 @@ export class EmailService {
             data: { status: InboxStatus.DELETED },
         });
 
+        // Trigger webhooks
+        await this.webhookDelivery.deliverEvent(userId, 'inbox.deleted', {
+            inboxId,
+            emailAddress: inbox.emailAddress,
+        });
+
         return { success: true };
     }
 
@@ -289,12 +324,7 @@ export class EmailService {
         }
 
         // Check plan-based rate limits
-        const user = await this.prisma.user.findUnique({
-            where: { id: userId },
-            select: { currentPlan: true },
-        });
-
-        const plan = user?.currentPlan || 'FREE';
+        const plan = await this.resolvePlanTier(userId);
 
         // Check monthly email quota
         const monthStart = new Date();
@@ -1041,21 +1071,16 @@ export class EmailService {
 
     async registerWebhook(userId: string, dto: RegisterWebhookDto) {
         // Check subscription plan webhook limits
-        const user = await this.prisma.user.findUnique({
-            where: { id: userId },
-            select: { currentPlan: true },
-        });
+        const planTier = await this.resolvePlanTier(userId);
 
         const currentWebhookCount = await this.prisma.webhookEndpoint.count({
             where: { userId, status: 'ACTIVE' },
         });
 
-        if (
-            !canCreateWebhook(user?.currentPlan || 'FREE', currentWebhookCount)
-        ) {
-            const limit = getWebhookLimit(user?.currentPlan || 'FREE');
+        if (!canCreateWebhook(planTier, currentWebhookCount)) {
+            const limit = getWebhookLimit(planTier);
             throw new BadRequestException(
-                `Webhook limit reached: your ${user?.currentPlan || 'FREE'} plan allows ${limit === -1 ? 'unlimited' : limit} webhooks. Upgrade to create more.`,
+                `Webhook limit reached: your ${planTier} plan allows ${limit === -1 ? 'unlimited' : limit} webhooks. Upgrade to create more.`,
             );
         }
 
