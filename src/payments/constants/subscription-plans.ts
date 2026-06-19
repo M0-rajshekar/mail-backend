@@ -211,8 +211,8 @@ export function getSubscriptionPrice(
  */
 export function getInboxLimit(tier: string): number {
     const plan = getSubscriptionPlanConfig(tier);
-    // No active subscription: allow 1 inbox so users can onboard, but no sending.
-    if (!plan) return 1;
+    // No active subscription (no paid plan): no inboxes. A plan is required.
+    if (!plan) return 0;
     return plan.maxInboxes;
 }
 

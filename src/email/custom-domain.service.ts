@@ -22,7 +22,12 @@ import {
 import { PrismaService } from '../services/prisma.service';
 import { DomainStatus, InboxStatus } from 'generated/prisma';
 import { ConfigService } from '@nestjs/config';
-import { SUBSCRIPTION_PLANS } from '../payments/constants/subscription-plans';
+import {
+    SUBSCRIPTION_PLANS,
+    canCreateInbox,
+    getInboxLimit,
+    getSubscriptionPlanConfig,
+} from '../payments/constants/subscription-plans';
 import { isUnlimited } from './constants/email-plans';
 import { CloudflareZonesService } from './cloudflare-zones.service';
 import { randomBytes } from 'crypto';
@@ -796,6 +801,40 @@ export class CustomDomainService {
         if (!domain.verified || domain.status !== DomainStatus.ACTIVE) {
             throw new ForbiddenException(
                 'Domain must be verified before creating inboxes. Complete DNS verification first.',
+            );
+        }
+
+        // Enforce subscription + per-plan inbox limit (same gate as default-domain
+        // inbox creation, so custom domains can't bypass the plan cap).
+        const planTier =
+            (
+                await this.prisma.user.findUnique({
+                    where: { id: userId },
+                    select: {
+                        Subscription: {
+                            where: { subscriptionStatus: 'ACTIVE' },
+                            orderBy: { createdAt: 'desc' },
+                            take: 1,
+                            select: { subscriptionPlan: true },
+                        },
+                    },
+                })
+            )?.Subscription?.[0]?.subscriptionPlan || 'FREE';
+
+        if (!getSubscriptionPlanConfig(planTier)) {
+            throw new ForbiddenException(
+                'An active subscription is required to create an inbox. Choose a plan to get started.',
+            );
+        }
+
+        const currentInboxCount = await this.prisma.inbox.count({
+            where: { userId, status: { not: 'DELETED' } },
+        });
+
+        if (!canCreateInbox(planTier, currentInboxCount)) {
+            const limit = getInboxLimit(planTier);
+            throw new ForbiddenException(
+                `Inbox limit reached: your ${planTier} plan allows ${limit === -1 ? 'unlimited' : limit} inboxes. Upgrade to create more.`,
             );
         }
 

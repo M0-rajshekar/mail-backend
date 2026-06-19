@@ -32,6 +32,7 @@ import {
 import {
     canCreateInbox,
     getInboxLimit,
+    getSubscriptionPlanConfig,
     getEmailsPerMonthLimit,
     getEmailsPerHourLimit,
     getEmailsPerDayLimit,
@@ -178,6 +179,13 @@ export class EmailService {
 
         // Check subscription plan limits
         const planTier = await this.resolvePlanTier(userId);
+
+        // No active paid subscription → no inbox creation. A plan is required.
+        if (!getSubscriptionPlanConfig(planTier)) {
+            throw new BadRequestException(
+                'An active subscription is required to create an inbox. Choose a plan to get started.',
+            );
+        }
 
         const currentInboxCount = await this.prisma.inbox.count({
             where: { userId, status: { not: 'DELETED' } },
