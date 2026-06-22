@@ -22,7 +22,13 @@ export class EmbeddingService {
      * Model: @cf/baai/bge-base-en-v1.5 (768 dimensions) or @cf/baai/bge-small-en-v1.5 (384 dimensions)
      */
     async generateEmbedding(text: string): Promise<number[]> {
-        const apiToken = this.configService.get<string>('CLOUDFLARE_API_TOKEN');
+        // Embeddings need only the "Workers AI" permission. Use a dedicated,
+        // least-privilege token (CLOUDFLARE_AI_TOKEN) so it does not have to
+        // share the broad-scope CLOUDFLARE_API_TOKEN used for email
+        // sending / zones / custom domains. Falls back to the shared token.
+        const apiToken =
+            this.configService.get<string>('CLOUDFLARE_AI_TOKEN') ||
+            this.configService.get<string>('CLOUDFLARE_API_TOKEN');
         const accountId = this.configService.get<string>(
             'CLOUDFLARE_ACCOUNT_ID',
         );
