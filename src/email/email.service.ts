@@ -26,6 +26,7 @@ import {
     buildReferencesChain,
     checkSendRateLimit,
     stripHtmlToText,
+    stripNullBytes,
     textToHtml,
     buildQuotedReplyBlock,
 } from './email-helpers';
@@ -623,30 +624,36 @@ export class EmailService {
                 inboxId: inbox.id,
                 messageId: originalMsgId,
                 fromAddress: (parsed.from?.address || '').toLowerCase(),
-                fromName: parsed.from?.name || null,
+                fromName: stripNullBytes(parsed.from?.name || null),
                 toAddresses: recipients.to,
                 ccAddresses: recipients.cc,
                 bccAddresses: recipients.bcc,
-                subject: parsed.subject || '',
-                body: parsed.text || stripHtmlToText(parsed.html || ''),
-                bodyHtml: parsed.html || null,
+                subject: stripNullBytes(parsed.subject || ''),
+                body: stripNullBytes(
+                    parsed.text || stripHtmlToText(parsed.html || ''),
+                ),
+                bodyHtml: stripNullBytes(parsed.html || null),
                 direction: EmailDirection.INBOUND,
                 status: EmailStatus.RECEIVED,
                 receivedAt: new Date(),
                 threadId: threadId || messageId,
-                attachments: storedAttachments.map((att) => ({
-                    id: att.id,
-                    filename: att.filename,
-                    mimetype: att.mimetype,
-                    size: att.size,
-                    s3Key: att.s3Key,
-                    extractedText: att.extractedText || null,
-                })),
-                metadata: {
+                // NUL bytes (from PDF/text extraction) break the jsonb insert
+                // with Postgres 22P05 — strip the whole attachments array.
+                attachments: stripNullBytes(
+                    storedAttachments.map((att) => ({
+                        id: att.id,
+                        filename: att.filename,
+                        mimetype: att.mimetype,
+                        size: att.size,
+                        s3Key: att.s3Key,
+                        extractedText: att.extractedText || null,
+                    })),
+                ),
+                metadata: stripNullBytes({
                     headers: parsed.headers,
                     inReplyTo,
                     references,
-                },
+                }),
             } as any,
         });
 

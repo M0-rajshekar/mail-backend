@@ -19,7 +19,8 @@ import { Logger } from '@nestjs/common';
  * - email.list_inboxes    - List all inboxes
  * - email.get_messages    - Get messages from an inbox
  * - email.send_email      - Send an email
- * - email.search_emails   - Search emails
+ * - email.search_emails   - Search emails by keyword
+ * - email.semantic_search - Search emails by meaning (vector similarity)
  * - email.get_inbox_stats - Get inbox statistics
  */
 
@@ -343,6 +344,23 @@ export class McpController {
                                 },
                             },
                             {
+                                name: 'email.semantic_search',
+                                description:
+                                    'Search emails by meaning/intent using vector similarity (e.g. "angry customers about refunds" matches related emails even without exact keywords). Use this for natural-language queries; use email.search_emails for exact keyword lookups.',
+                                inputSchema: {
+                                    type: 'object',
+                                    properties: {
+                                        query: {
+                                            type: 'string',
+                                            description:
+                                                'Natural-language query describing the meaning to search for',
+                                        },
+                                        limit: { type: 'number', default: 20 },
+                                    },
+                                    required: ['query'],
+                                },
+                            },
+                            {
                                 name: 'email.get_inbox_stats',
                                 description: 'Get statistics for all inboxes',
                                 inputSchema: {
@@ -593,6 +611,15 @@ export class McpController {
                                     inboxId: args.inboxId,
                                     limit: args.limit || 20,
                                 },
+                            );
+                            break;
+                        }
+
+                        case 'email.semantic_search': {
+                            result = await this.emailService.semanticSearch(
+                                userId,
+                                args.query,
+                                args.limit || 20,
                             );
                             break;
                         }

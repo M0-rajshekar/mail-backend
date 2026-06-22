@@ -151,6 +151,37 @@ export function stripHtmlToText(html: string): string {
 }
 
 /**
+ * Postgres text/jsonb columns cannot store the NUL byte (). PDF/text
+ * extraction and some raw-MIME content can contain it, which makes
+ * prisma.*.create() throw "22P05: unsupported Unicode escape sequence:
+ *  cannot be converted to text". Recursively strip NUL from every
+ * string in the value. Dates, Buffers and other non-plain objects are
+ * returned untouched.
+ */
+export function stripNullBytes<T>(value: T): T {
+    if (typeof value === 'string') {
+        // Remove NUL (U+0000) using fromCharCode to avoid a literal control
+        // char in source. split/join strips every occurrence.
+        return value.split(String.fromCharCode(0)).join('') as unknown as T;
+    }
+    if (Array.isArray(value)) {
+        return value.map((v) => stripNullBytes(v)) as unknown as T;
+    }
+    if (
+        value &&
+        typeof value === 'object' &&
+        (value as any).constructor === Object
+    ) {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+            out[k] = stripNullBytes(v);
+        }
+        return out as unknown as T;
+    }
+    return value;
+}
+
+/**
  * Build quoted reply block
  */
 export function buildQuotedReplyBlock(original: {
